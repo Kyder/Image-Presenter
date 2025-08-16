@@ -13,7 +13,7 @@ Basic functions:
 
 Addons:
 
-Date/Tme Display>
+Date/Time Display>
 Shows real Date and Time on the screen in few modes with option to use custom font or adjust font size.
 
 Scheduled restart>
@@ -34,9 +34,10 @@ Web Control:
 Addons:
 Date/Time Display:
 - Teleporting is happening only from two corners
-- 
+- Sliding from left to right is actually from right to left 
+
 Scheduled restart:
-- When you change settings multiple times it may stay on the screen even when you disable the addon, restart is required to keep everything working corectly
+- When you change settings multiple times warrning may stay on the screen even when you disable the addon, restart is required to keep everything working corectly after this happen
 
 This app was made with help of AI, can have some security problems or some parts might not behave as wanted but generally speaking, if it works it works.
 So I cannot guarantee how secure this application is.
