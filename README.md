@@ -12,6 +12,7 @@ Basic functions:
 - Addon support
 
 Addons:
+
 Date/Tme Display>
 Shows real Date and Time on the screen in few modes with option to use custom font or adjust font size.
 
