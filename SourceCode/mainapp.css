@@ -1,0 +1,117 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #000;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#main-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-origin: center center;
+    transition: transform 0.5s ease-in-out;
+}
+
+#media-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.media-item {
+    position: absolute;
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out;
+    z-index: 1;
+    /* Force hardware acceleration for smoother transitions */
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+
+.media-item.active {
+    opacity: 1;
+    z-index: 2;
+}
+
+/* Ensure proper layering during transitions */
+.media-item:not(.active) {
+    z-index: 1;
+}
+
+video.media-item {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+}
+
+video.media-item.active {
+    pointer-events: auto;
+}
+
+#loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-family: Arial, sans-serif;
+    font-size: 24px;
+    z-index: 10;
+}
+
+#no-media {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-family: Arial, sans-serif;
+    font-size: 24px;
+    text-align: center;
+    display: none;
+    z-index: 10;
+}
+
+#no-media h2 {
+    margin-bottom: 20px;
+}
+
+#no-media p {
+    font-size: 18px;
+    opacity: 0.8;
+}
+
+/* Addon container for overlay elements */
+#addon-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.addon-element {
+    pointer-events: auto;
+}
+

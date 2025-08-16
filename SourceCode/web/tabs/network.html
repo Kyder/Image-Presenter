@@ -1,0 +1,66 @@
+<h2>Network Settings</h2>
+
+<div class="form-group">
+    <label for="device-name">Device Name</label>
+    <input type="text" id="device-name" placeholder="Enter device name">
+</div>
+
+<div class="form-group">
+    <label for="static-ip">Static IP (optional)</label>
+    <input type="text" id="static-ip" placeholder="192.168.1.100">
+    <small style="color: #6c757d;">Leave empty for localhost. App will bind to this IP address.</small>
+</div>
+
+<div class="form-group">
+    <label>
+        <input type="checkbox" id="localhost-only"> Localhost only mode
+    </label>
+    <small style="color: #6c757d; display: block; margin-left: 24px;">
+        When checked, the app will only be accessible from this machine (127.0.0.1).
+        Unchecked, it listens on all network interfaces. Use this for security on company networks.
+    </small>
+</div>
+
+<div class="form-group">
+    <label for="app-port">Application Port</label>
+    <input type="number" id="app-port" placeholder="3000" min="1" max="65535">
+    <small style="color: #6c757d;">Default is 3000. Restart required after change.</small>
+</div>
+
+<div class="form-group">
+    <label for="ws-port">WebSocket Port</label>
+    <input type="number" id="ws-port" placeholder="3001" min="1" max="65535">
+    <small style="color: #6c757d;">Default is 3001. Used for real-time updates.</small>
+</div>
+
+<div class="form-group">
+    <label for="discovery-port">Discovery Port</label>
+    <input type="number" id="discovery-port" placeholder="3002" min="1" max="65535">
+    <small style="color: #6c757d;">Default is 3002. Used for auto-discovery.</small>
+</div>
+
+<div class="form-group">
+    <label for="password">Access Password</label>
+    <input type="password" id="password" placeholder="Enter password">
+    <small style="color: #6c757d;">Leave empty to disable password protection</small>
+</div>
+
+<button id="save-network" class="btn-success">Save Network Settings</button>
+
+<h3 style="margin-top: 40px;">Discovered Devices</h3>
+<div id="peer-list" class="peer-list"></div>
+
+<h3 style="margin-top: 30px;">Add Device Manually</h3>
+<div class="form-group">
+    <label for="manual-ip">Device IP Address</label>
+    <input type="text" id="manual-ip" placeholder="192.168.1.101">
+</div>
+<div class="form-group">
+    <label for="manual-port">Device Port</label>
+    <input type="number" id="manual-port" placeholder="3000" value="3000" min="1" max="65535">
+</div>
+<div class="form-group">
+    <label for="manual-name">Device Name</label>
+    <input type="text" id="manual-name" placeholder="Display 2">
+</div>
+<button id="add-device" class="btn-success">Add Device</button>

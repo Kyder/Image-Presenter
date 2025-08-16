@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Signage Display</title>
+    <link rel="stylesheet" href="mainapp.css">
+</head>
+<body>
+    <div id="main-container">
+        <div id="media-container">
+            <div id="loading">Loading media...</div>
+            <div id="no-media">
+                <h2>No Media Files Found</h2>
+                <p>Please add media files to the Media folder</p>
+                <p>Supported formats: SVG, PNG, JPG, MP4</p>
+            </div>
+        </div>
+        
+        <!-- Container for addon elements -->
+        <div id="addon-container"></div>
+        
+    </div>
+    
+    <script>
+        // Global variables
+        let mediaFiles = [];
+        let currentIndex = 0;
+        let config = {
+            imageDuration: 5000,
+            videoPosition: 'after',
+            rotation: 0
+        };
+        let isPlaying = false;
+        let currentTimeout = null;
+        let loadedAddons = new Map();
+        
+        // Initialize
+        async function init() {
+            try {
+                await loadConfig();
+                console.log('Config loaded');
+                await loadMedia();
+                setupEventListeners();
+                applyRotation();
+                await loadFrontendAddons();
+                
+                if (mediaFiles.length > 0) {
+                    startPlayback();
+                }
+            } catch (err) {
+                console.error('Init error:', err);
+            }
+        }
+        
+        // Apply rotation to container
+        function applyRotation() {
+            const container = document.getElementById('main-container');
+            container.style.transform = `rotate(${config.rotation}deg)`;
+            
+            // Adjust container size for 90/-90 degree rotations
+            if (Math.abs(config.rotation) === 90 || Math.abs(config.rotation) === 270) {
+                container.style.width = '100vh';
+                container.style.height = '100vw';
+            } else {
+                container.style.width = '100%';
+                container.style.height = '100%';
+            }
+        }
+        
+        // Load and initialize frontend addons
+        async function loadFrontendAddons() {
+            try {
+                // Get enabled addons from config
+                const addons = await window.electronAPI.getAddons();
+                
+                // Clear existing addons
+                for (const [id, addon] of loadedAddons) {
+                    if (addon.cleanup) {
+                        addon.cleanup();
+                    }
+                }
+                loadedAddons.clear();
+                
+                // Clear addon container
+                const addonContainer = document.getElementById('addon-container');
+                addonContainer.innerHTML = '';
+                
+                // Load enabled addons
+                for (const [id, addonConfig] of Object.entries(addons)) {
+                    if (!addonConfig.enabled) continue;
+                    
+                    try {
+                        // Get frontend script for this addon
+                        const script = await getAddonFrontendScript(id, addonConfig);
+                        
+                        if (script) {
+                            // Create and execute addon script
+                            const scriptElement = document.createElement('script');
+                            scriptElement.textContent = script;
+                            document.head.appendChild(scriptElement);
+                            
+                            // Store addon info
+                            loadedAddons.set(id, {
+                                info: addonConfig.info,
+                                config: addonConfig.config,
+                                script: scriptElement,
+                                cleanup: () => {
+                                    if (scriptElement.parentNode) {
+                                        scriptElement.parentNode.removeChild(scriptElement);
+                                    }
+                                    // Call addon-specific cleanup
+                                    if (window[`${id}Addon`] && window[`${id}Addon`].cleanup) {
+                                        window[`${id}Addon`].cleanup();
+                                    }
+                                }
+                            });
+                            
+                            console.log(`Loaded frontend addon: ${addonConfig.info.name}`);
+                        }
+                        
+                    } catch (err) {
+                        console.error(`Failed to load frontend addon ${id}:`, err);
+                    }
+                }
+                
+            } catch (err) {
+                console.error('Failed to load frontend addons:', err);
+            }
+        }
+        
+// Get addon frontend script
+async function getAddonFrontendScript(addonId, addonConfig) {
+    // Request the frontend script from the main process via IPC
+    try {
+        if (window.electronAPI && window.electronAPI.getAddonFrontendScript) {
+            return await window.electronAPI.getAddonFrontendScript(addonId, addonConfig);
+        } else {
+            console.warn(`Cannot get frontend script for addon ${addonId}: electronAPI not available`);
+            return null;
+        }
+    } catch (err) {
+        console.error(`Failed to get frontend script for addon ${addonId}:`, err);
+        return null;
+    }
+}
+        
+        // Load configuration
+        async function loadConfig() {
+            try {
+                config = await window.electronAPI.getConfig();
+                console.log('Loaded config:', config);
+            } catch (err) {
+                console.error('Failed to load config:', err);
+            }
+        }
+        
+        // Load media files
+        async function loadMedia() {
+            try {
+                mediaFiles = await window.electronAPI.getMediaFiles();
+                
+                // Sort media based on video position setting
+                if (config.videoPosition === 'after') {
+                    // Images first, then videos
+                    mediaFiles.sort((a, b) => {
+                        if (a.type === 'image' && b.type === 'video') return -1;
+                        if (a.type === 'video' && b.type === 'image') return 1;
+                        return a.name.localeCompare(b.name);
+                    });
+                } else {
+                    // Natural alphabetical order
+                    mediaFiles.sort((a, b) => a.name.localeCompare(b.name));
+                }
+                
+                document.getElementById('loading').style.display = 'none';
+                
+                if (mediaFiles.length === 0) {
+                    document.getElementById('no-media').style.display = 'block';
+                } else {
+                    document.getElementById('no-media').style.display = 'none';
+                }
+            } catch (err) {
+                console.error('Failed to load media:', err);
+                document.getElementById('loading').textContent = 'Error loading media';
+            }
+        }
+        
+        // Setup event listeners
+        function setupEventListeners() {
+            // Listen for config updates
+            window.electronAPI.onConfigUpdate(async (newConfig) => {
+                config = newConfig;
+                applyRotation();
+                await loadFrontendAddons();
+                if (isPlaying && mediaFiles[currentIndex]?.type === 'image') {
+                    clearTimeout(currentTimeout);
+                    currentTimeout = setTimeout(nextMedia, config.imageDuration);
+                }
+            });
+            
+            // Listen for media updates
+            window.electronAPI.onMediaUpdate(async () => {
+                await loadMedia();
+                if (!isPlaying && mediaFiles.length > 0) {
+                    startPlayback();
+                }
+            });
+            
+            // Listen for addon updates
+            window.electronAPI.onAddonsUpdate(async () => {
+                console.log('Addons updated, reloading...');
+                await loadFrontendAddons();
+            });
+        }
+        
+        // Start playback
+        function startPlayback() {
+            if (mediaFiles.length === 0) return;
+            
+            isPlaying = true;
+            currentIndex = 0;
+            showMedia(currentIndex);
+        }
+        
+        // Show media item - FIXED VERSION with proper transitions
+        function showMedia(index) {
+            const container = document.getElementById('media-container');
+            const file = mediaFiles[index];
+            
+            // Create new media element
+            let newElement;
+            
+            if (file.type === 'image') {
+                newElement = document.createElement('img');
+                newElement.className = 'media-item';
+                newElement.src = `file://${file.path}`;
+                
+                newElement.onload = () => {
+                    // Add to container first (invisible)
+                    container.appendChild(newElement);
+                    
+                    // Small delay to ensure DOM is updated
+                    setTimeout(() => {
+                        // Fade out current active element
+                        const currentActive = container.querySelector('.media-item.active');
+                        if (currentActive) {
+                            currentActive.classList.remove('active');
+                        }
+                        
+                        // Fade in new element
+                        newElement.classList.add('active');
+                        
+                        // Remove old elements after transition
+                        setTimeout(() => {
+                            const oldElements = container.querySelectorAll('.media-item:not(.active)');
+                            oldElements.forEach(el => el.remove());
+                        }, 600); // Slightly longer than transition duration
+                        
+                        // Set timeout for next image
+                        currentTimeout = setTimeout(nextMedia, config.imageDuration);
+                    }, 50);
+                };
+                
+                newElement.onerror = () => {
+                    console.error('Failed to load image:', file.name);
+                    nextMedia();
+                };
+                
+            } else if (file.type === 'video') {
+                newElement = document.createElement('video');
+                newElement.className = 'media-item';
+                newElement.src = `file://${file.path}`;
+                newElement.autoplay = true;
+                newElement.muted = true;
+                
+                newElement.onloadeddata = () => {
+                    // Add to container first (invisible)
+                    container.appendChild(newElement);
+                    
+                    // Small delay to ensure DOM is updated
+                    setTimeout(() => {
+                        // Fade out current active element
+                        const currentActive = container.querySelector('.media-item.active');
+                        if (currentActive) {
+                            currentActive.classList.remove('active');
+                        }
+                        
+                        // Fade in new element
+                        newElement.classList.add('active');
+                        
+                        // Remove old elements after transition
+                        setTimeout(() => {
+                            const oldElements = container.querySelectorAll('.media-item:not(.active)');
+                            oldElements.forEach(el => el.remove());
+                        }, 600); // Slightly longer than transition duration
+                    }, 50);
+                };
+                
+                newElement.onended = () => {
+                    nextMedia();
+                };
+                
+                newElement.onerror = () => {
+                    console.error('Failed to load video:', file.name);
+                    nextMedia();
+                };
+            }
+        }
+        
+        // Next media
+        function nextMedia() {
+            currentIndex = (currentIndex + 1) % mediaFiles.length;
+            showMedia(currentIndex);
+        }
+        
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
