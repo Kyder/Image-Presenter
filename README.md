@@ -26,6 +26,7 @@ Can show warrning before restart will. Also offers basic customization for warrn
 Known issues:
 
 Main App: 
+
 Video MP4 doesnt work even when listed as supported.
 
 Web Control:
