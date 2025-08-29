@@ -1,7 +1,8 @@
 # Image-Presenter
 Fullscreen image presenter with web control and addons.
 
-Application shows images in Fullscreen, and trought web browser is possible to control any part of this app. This is Eletron (node.js) app.
+Application shows images in Fullscreen, and trought web browser is possible to control any part of this app. 
+This is Electron (node.js) app.
 
 Basic functions:
 - Image presentation with adjustable delay
@@ -23,6 +24,7 @@ Can show warrning before restart will. Also offers basic customization for warrn
 
 
 Known issues:
+
 Main App: 
 Video MP4 doesnt work even when listed as supported.
 
