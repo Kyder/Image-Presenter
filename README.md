@@ -35,6 +35,7 @@ Web Control:
 - In Display tab, screen rotations works but two of them can have wrong names
 
 Addons:
+
 Date/Time Display:
 - Teleporting is happening only from two corners
 - Sliding from left to right is actually from right to left 
