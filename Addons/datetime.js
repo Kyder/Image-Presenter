@@ -5,7 +5,7 @@
 // Addon information (required)
 const info = {
   name: "Date/Time Display",
-  version: "1.1.0",
+  version: "1.1.1",
   description: "Displays current date and time with customizable animations, styling, font size, and date separators",
   author: "Digital Signage Team",
   category: "Display"
@@ -154,7 +154,6 @@ class DateTimeAddon {
     };
     
     this.fontsDir = null;
-    this.directoryName = 'DateTimeFonts';
     this.fontDataCache = new Map(); // Cache font data as base64
     console.log('DateTimeAddon created with config:', this.config);
   }
@@ -168,11 +167,11 @@ class DateTimeAddon {
       return;
     }
     
-    // Create this addon's specific directory if needed
-    await this.ensureAddonDirectory();
+    // Set up fonts directory path
+    this.setupFontsDirectory();
     
-    // Test font access for debugging (remove this line later for production)
-    await this.testFontAccess();
+    // Ensure the shared fonts directory exists
+    await this.ensureFontsDirectory();
     
     // Update font options dynamically in the settings
     await this.updateFontOptions();
@@ -180,103 +179,55 @@ class DateTimeAddon {
     console.log('Date/Time addon initialized successfully');
   }
   
-  // Create addon's specific directory only when this addon needs it
-  async ensureAddonDirectory() {
+  // Set up the correct path to the shared Fonts directory
+  setupFontsDirectory() {
     const path = require('path');
-    const fs = require('fs').promises;
     const { app } = require('electron');
     
+    // Get the app directory (same logic as main.js)
+    const appDir = app.isPackaged 
+      ? path.dirname(process.execPath)  // Production: directory of the executable
+      : path.dirname(__dirname);        // Development: parent of Addons directory
+    
+    // Use the shared Fonts directory (same as main app)
+    this.fontsDir = path.join(appDir, 'Fonts');
+    
+    console.log('Fonts directory set to:', this.fontsDir);
+  }
+  
+  // Ensure the shared Fonts directory exists
+  async ensureFontsDirectory() {
+    const fs = require('fs').promises;
+    
     try {
-      const appDir = app.isPackaged 
-        ? path.dirname(process.execPath)
-        : __dirname.replace(/[\\\/]Addons$/, '');
-      
-      this.fontsDir = path.join(appDir, this.directoryName);
-      
+      await fs.access(this.fontsDir);
+      console.log('Fonts directory exists:', this.fontsDir);
+    } catch {
       try {
-        await fs.access(this.fontsDir);
-        console.log(`${this.directoryName} directory already exists:`, this.fontsDir);
-      } catch {
         await fs.mkdir(this.fontsDir, { recursive: true });
-        console.log(`Created ${this.directoryName} directory for DateTime addon:`, this.fontsDir);
+        console.log('Created Fonts directory:', this.fontsDir);
         
-        const readmeContent = `DateTimeFonts Directory
-======================
+        // Create a README file
+        const readmeContent = `Fonts Directory
+================
 
-This directory is created by the Date/Time Display addon.
+This directory is for custom font files that can be used by addons.
 Place your custom font files here (.ttf, .otf, .woff, .woff2)
 
-The fonts will be available for selection in the addon settings.
+The fonts will be available for selection in addon settings.
 
 Supported formats:
 - TrueType (.ttf)
 - OpenType (.otf)
 - Web Open Font Format (.woff, .woff2)
 
-After adding fonts, click "Reload Addons" to refresh the font list.
+After adding fonts, click "Reload Addons" in the web interface to refresh the font list.
 `;
         await fs.writeFile(path.join(this.fontsDir, 'README.txt'), readmeContent);
+      } catch (err) {
+        console.error('Failed to create Fonts directory:', err);
       }
-    } catch (err) {
-      console.error(`Failed to create ${this.directoryName} directory:`, err);
     }
-  }
-  
-  // Test method to check fonts directory and files
-  async testFontAccess() {
-    const path = require('path');
-    const fs = require('fs').promises;
-    
-    console.log('=== Font Access Test ===');
-    console.log(`Fonts directory path: ${this.fontsDir}`);
-    
-    try {
-      // Check if directory exists
-      await fs.access(this.fontsDir);
-      console.log('✓ Fonts directory exists');
-      
-      // List all files
-      const files = await fs.readdir(this.fontsDir);
-      console.log('Files in directory:', files);
-      
-      // Filter font files
-      const fontFiles = files.filter(file => 
-        /\.(ttf|otf|woff|woff2)$/i.test(file) && file !== 'README.txt'
-      );
-      console.log('Font files found:', fontFiles);
-      
-      // Test reading first font file if exists
-      if (fontFiles.length > 0) {
-        const testFont = fontFiles[0];
-        const testPath = path.join(this.fontsDir, testFont);
-        console.log(`Testing access to: ${testPath}`);
-        
-        try {
-          await fs.access(testPath);
-          console.log(`✓ Can access ${testFont}`);
-          
-          const stats = await fs.stat(testPath);
-          console.log(`File size: ${stats.size} bytes`);
-          
-          // Try reading first few bytes
-          const handle = await fs.open(testPath, 'r');
-          const buffer = Buffer.alloc(10);
-          await handle.read(buffer, 0, 10, 0);
-          await handle.close();
-          console.log(`✓ Can read ${testFont}, first 10 bytes:`, buffer);
-          
-        } catch (err) {
-          console.error(`✗ Cannot access ${testFont}:`, err);
-        }
-      } else {
-        console.log('No font files found in directory');
-      }
-      
-    } catch (err) {
-      console.error('✗ Cannot access fonts directory:', err);
-    }
-    
-    console.log('=== End Font Access Test ===');
   }
   
   // Update font options dynamically in the settings object
@@ -288,7 +239,10 @@ After adding fonts, click "Reload Addons" to refresh the font list.
       if (fontSetting) {
         fontSetting.options = [
           { value: 'default', label: 'Default (Arial)' },
-          ...availableFonts.map(font => ({ value: font, label: font }))
+          ...availableFonts.map(font => ({ 
+            value: font, 
+            label: font.replace(/\.(ttf|otf|woff2?)$/i, '') // Remove extension for cleaner display
+          }))
         ];
         
         console.log('Updated font options:', fontSetting.options);
@@ -329,31 +283,35 @@ After adding fonts, click "Reload Addons" to refresh the font list.
     return this.config;
   }
   
-  // Get available fonts from this addon's directory
+  // Get available fonts from the shared Fonts directory
   async getAvailableFonts() {
-    if (!this.fontsDir) {
-      await this.ensureAddonDirectory();
-    }
-    
     const fs = require('fs').promises;
     
     try {
+      if (!this.fontsDir) {
+        this.setupFontsDirectory();
+      }
+      
       const files = await fs.readdir(this.fontsDir);
       const fontFiles = files.filter(file => 
-        /\.(ttf|otf|woff|woff2)$/i.test(file) && file !== 'README.txt'
+        /\.(ttf|otf|woff|woff2)$/i.test(file) && 
+        !file.startsWith('.') && 
+        file !== 'README.txt'
       );
-      console.log('Found font files:', fontFiles);
+      
+      console.log('Found font files in', this.fontsDir, ':', fontFiles);
       return fontFiles;
-    } catch {
-      console.log('No fonts directory or error reading fonts');
+    } catch (err) {
+      console.log('Error reading fonts directory:', err.message);
       return [];
     }
   }
   
-  // Get font as base64 data URL (with debugging)
+  // Get font as base64 data URL (with improved error handling)
   async getFontAsDataUrl(fontName) {
     console.log(`getFontAsDataUrl called with fontName: "${fontName}"`);
     
+    // Check cache first
     if (this.fontDataCache.has(fontName)) {
       console.log(`Font ${fontName} found in cache`);
       return this.fontDataCache.get(fontName);
@@ -363,20 +321,19 @@ After adding fonts, click "Reload Addons" to refresh the font list.
     const fs = require('fs').promises;
     
     try {
-      // Ensure fonts directory exists
+      // Ensure fonts directory is set up
       if (!this.fontsDir) {
-        console.log('Fonts directory not set, creating...');
-        await this.ensureAddonDirectory();
+        this.setupFontsDirectory();
       }
       
       console.log(`Looking for font in directory: ${this.fontsDir}`);
       
-      // Check if fonts directory exists
+      // Verify fonts directory exists
       try {
         await fs.access(this.fontsDir);
-        console.log('Fonts directory exists');
       } catch (err) {
         console.error('Fonts directory does not exist:', this.fontsDir);
+        await this.ensureFontsDirectory(); // Try to create it
         return null;
       }
       
@@ -385,10 +342,19 @@ After adding fonts, click "Reload Addons" to refresh the font list.
       
       // Check if specific font file exists
       try {
-        await fs.access(fontPath);
-        console.log(`Font file ${fontName} exists`);
+        const stats = await fs.stat(fontPath);
+        console.log(`Font file ${fontName} exists, size: ${stats.size} bytes`);
       } catch (err) {
         console.error(`Font file ${fontName} does not exist at path: ${fontPath}`);
+        
+        // List available files for debugging
+        try {
+          const availableFiles = await fs.readdir(this.fontsDir);
+          console.log('Available files in fonts directory:', availableFiles);
+        } catch (listErr) {
+          console.error('Could not list files in fonts directory:', listErr.message);
+        }
+        
         return null;
       }
       
@@ -396,10 +362,11 @@ After adding fonts, click "Reload Addons" to refresh the font list.
       const fontData = await fs.readFile(fontPath);
       console.log(`Font file read successfully, size: ${fontData.length} bytes`);
       
+      // Convert to base64
       const base64Data = fontData.toString('base64');
       console.log(`Font converted to base64, length: ${base64Data.length} characters`);
       
-      // Determine MIME type
+      // Determine MIME type based on file extension
       const ext = fontName.toLowerCase().split('.').pop();
       let mimeType = 'application/octet-stream';
       
@@ -418,19 +385,25 @@ After adding fonts, click "Reload Addons" to refresh the font list.
           break;
         default:
           console.warn(`Unknown font extension: ${ext}, using default MIME type`);
+          mimeType = 'font/truetype'; // Default fallback
       }
       
+      // Create data URL
       const dataUrl = `data:${mimeType};base64,${base64Data}`;
+      
+      // Cache the result
       this.fontDataCache.set(fontName, dataUrl);
       
       console.log(`Font ${fontName} cached successfully as data URL with MIME type: ${mimeType}`);
       return dataUrl;
+      
     } catch (err) {
       console.error(`Failed to read font ${fontName}:`, err);
       console.error('Error details:', {
         message: err.message,
         code: err.code,
-        path: err.path
+        path: err.path,
+        stack: err.stack
       });
       return null;
     }
@@ -440,7 +413,7 @@ After adding fonts, click "Reload Addons" to refresh the font list.
   getFrontendScript() {
     return `
       // Date/Time Display Frontend Script - Generated by DateTime Addon
-      window.DateTimeAddon = {
+      window.dateTimeAddon = {
         config: ${JSON.stringify(this.config)},
         updateInterval: null,
         teleportInterval: null,
@@ -531,66 +504,52 @@ After adding fonts, click "Reload Addons" to refresh the font list.
                 document.fonts.delete(this.customFont);
                 console.log('Removed old custom font');
               } catch (e) {
-                console.log('Could not delete old font:', e);
+                console.log('Could not delete old font:', e.message);
               }
             }
             
-            // Get font data URL from backend addon via IPC with retry
+            // Get font data URL from backend addon via IPC
             console.log('Requesting font data from backend...');
-            let fontDataUrl = null;
-            let retryCount = 0;
-            const maxRetries = 3;
-            
-            while (!fontDataUrl && retryCount < maxRetries) {
-              try {
-                fontDataUrl = await this.getFontDataUrl(this.config.font);
-                if (fontDataUrl) {
-                  break;
-                }
-              } catch (err) {
-                console.log(\`Font data request attempt \${retryCount + 1} failed:\`, err);
-              }
-              
-              retryCount++;
-              if (retryCount < maxRetries) {
-                console.log(\`Retrying font data request in 500ms (attempt \${retryCount + 1}/\${maxRetries})...\`);
-                await new Promise(resolve => setTimeout(resolve, 500));
-              }
-            }
+            const fontDataUrl = await this.getFontDataUrl(this.config.font);
             
             if (!fontDataUrl) {
-              throw new Error(\`Could not get font data from backend after \${maxRetries} attempts\`);
+              throw new Error('Could not get font data from backend');
             }
             
-            // Load custom font using data URL
-            const fontFamilyName = 'CustomDateTimeFont_' + this.config.font.replace(/[^a-zA-Z0-9]/g, '') + '_' + Date.now();
+            // Create unique font family name
+            const fontFamilyName = 'CustomDateTimeFont_' + 
+              this.config.font.replace(/[^a-zA-Z0-9]/g, '') + 
+              '_' + Date.now();
             
-            console.log('Loading custom font using data URL...');
+            console.log('Loading custom font with family name:', fontFamilyName);
             
+            // Load custom font using FontFace API
             this.customFont = new FontFace(fontFamilyName, \`url("\${fontDataUrl}")\`);
+            
+            // Wait for font to load
             await this.customFont.load();
+            
+            // Add font to document
             document.fonts.add(this.customFont);
             
-            this.element.style.fontFamily = \`\${fontFamilyName}, Arial, sans-serif\`;
+            // Apply the font
+            this.element.style.fontFamily = \`"\${fontFamilyName}", Arial, sans-serif\`;
             
-            console.log('Custom font loaded successfully:', fontFamilyName);
+            console.log('Custom font loaded and applied successfully:', fontFamilyName);
+            
           } catch (err) {
             console.error('Failed to load custom font:', err);
-            console.log('Falling back to default font');
+            console.log('Falling back to default font (Arial)');
             this.element.style.fontFamily = 'Arial, sans-serif';
           }
         },
         
-        // Get font data URL from backend via IPC with better error handling
+        // Get font data URL from backend via IPC
         async getFontDataUrl(fontName) {
           try {
             // Check if API is available
-            if (!window.electronAPI) {
-              throw new Error('electronAPI not available');
-            }
-            
-            if (!window.electronAPI.getAddonFontData) {
-              throw new Error('getAddonFontData method not available');
+            if (!window.electronAPI || !window.electronAPI.getAddonFontData) {
+              throw new Error('electronAPI.getAddonFontData not available');
             }
             
             console.log(\`Requesting font data for: \${fontName}\`);
@@ -600,8 +559,9 @@ After adding fonts, click "Reload Addons" to refresh the font list.
               throw new Error('Backend returned null/undefined for font data');
             }
             
-            console.log('Font data received successfully');
+            console.log('Font data received successfully from backend');
             return result;
+            
           } catch (err) {
             console.error('Failed to get font data from backend:', err);
             throw err;
@@ -615,45 +575,51 @@ After adding fonts, click "Reload Addons" to refresh the font list.
           this.element.style.fontWeight = this.config.bold ? 'bold' : 'normal';
           this.element.style.fontSize = \`\${this.config.fontSize || 24}px\`;
           
+          // Apply text border/shadow
           if (this.config.borderWidth > 0) {
-            const shadow = [];
+            const shadows = [];
             const bw = this.config.borderWidth;
             const bc = this.config.borderColor || '#000000';
             
+            // Create text shadow in all directions for border effect
             for (let x = -bw; x <= bw; x++) {
               for (let y = -bw; y <= bw; y++) {
                 if (x !== 0 || y !== 0) {
-                  shadow.push(\`\${x}px \${y}px 0 \${bc}\`);
+                  shadows.push(\`\${x}px \${y}px 0 \${bc}\`);
                 }
               }
             }
-            this.element.style.textShadow = shadow.join(', ');
+            this.element.style.textShadow = shadows.join(', ');
           } else {
             this.element.style.textShadow = 'none';
           }
         },
         
         setupLayout(dateEl, timeEl) {
+          // Reset styles
+          dateEl.style.display = 'block';
+          timeEl.style.display = 'block';
+          dateEl.style.marginLeft = '0';
+          timeEl.style.marginLeft = '0';
+          dateEl.style.marginTop = '0';
+          timeEl.style.marginTop = '0';
+          
           if (this.config.layout === 'inline') {
-            dateEl.style.display = 'inline';
-            timeEl.style.display = 'inline';
+            dateEl.style.display = 'inline-block';
+            timeEl.style.display = 'inline-block';
             timeEl.style.marginLeft = '20px';
-            timeEl.style.marginTop = '0';
-            dateEl.style.marginTop = '0';
           } else if (this.config.layout === 'above') {
-            dateEl.style.display = 'block';
-            timeEl.style.display = 'block';
-            timeEl.style.marginLeft = '0';
-            timeEl.style.marginTop = '0';
-            dateEl.style.marginTop = '10px';
-            this.element.insertBefore(timeEl, dateEl);
+            // Time above date
+            this.element.innerHTML = '';
+            this.element.appendChild(timeEl);
+            this.element.appendChild(dateEl);
+            dateEl.style.marginTop = '5px';
           } else if (this.config.layout === 'below') {
-            dateEl.style.display = 'block';
-            timeEl.style.display = 'block';
-            timeEl.style.marginLeft = '0';
-            dateEl.style.marginTop = '0';
-            timeEl.style.marginTop = '10px';
-            this.element.insertBefore(dateEl, timeEl);
+            // Time below date (default order)
+            this.element.innerHTML = '';
+            this.element.appendChild(dateEl);
+            this.element.appendChild(timeEl);
+            timeEl.style.marginTop = '5px';
           }
         },
         
@@ -662,20 +628,18 @@ After adding fonts, click "Reload Addons" to refresh the font list.
             const now = new Date();
             
             // Format date with custom separator
-            const dateOptions = { day: '2-digit', month: '2-digit', year: 'numeric' };
-            let dateString = now.toLocaleDateString('en-GB', dateOptions);
-            
-            // Replace default separators with configured separator
+            const day = String(now.getDate()).padStart(2, '0');
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const year = now.getFullYear();
             const dateSep = this.config.dateSeparator || '.';
-            dateString = dateString.replace(/[\\/.-]/g, dateSep);
+            const dateString = \`\${day}\${dateSep}\${month}\${dateSep}\${year}\`;
             
             // Format time with custom separator
-            const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
-            let timeString = now.toLocaleTimeString('en-GB', timeOptions);
-            
-            // Replace default separators with configured separator
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
             const timeSep = this.config.timeSeparator || ':';
-            timeString = timeString.replace(/[:.-]/g, timeSep);
+            const timeString = \`\${hours}\${timeSep}\${minutes}\${timeSep}\${seconds}\`;
             
             dateEl.textContent = dateString;
             timeEl.textContent = timeString;
@@ -687,14 +651,17 @@ After adding fonts, click "Reload Addons" to refresh the font list.
         },
         
         applyAnimation() {
+          // Clear any existing animations
           this.element.style.animation = 'none';
           this.element.classList.remove('sliding', 'bouncing');
           
+          // Reset position
           this.element.style.left = 'auto';
           this.element.style.top = 'auto';
           this.element.style.right = '10px';
           this.element.style.bottom = '10px';
           this.element.style.transform = 'none';
+          this.element.style.position = 'absolute';
           
           const style = this.config.style || 'static';
           console.log('Applying animation style:', style);
@@ -705,31 +672,33 @@ After adding fonts, click "Reload Addons" to refresh the font list.
             this.startBouncing();
           } else if (style === 'teleporting') {
             this.startTeleporting();
-          } else {
-            this.element.style.position = 'absolute';
-            this.element.style.bottom = '10px';
-            this.element.style.right = '10px';
-            this.element.style.left = 'auto';
-            this.element.style.top = 'auto';
           }
+          // static style needs no additional setup
         },
         
         startSliding() {
-          this.element.style.position = 'absolute';
           this.element.style.top = '20px';
           this.element.style.bottom = 'auto';
           this.element.style.right = 'auto';
+          this.element.style.left = '100vw';
           
-          const duration = (window.innerWidth + 400) / (this.config.speed || 50);
+          const duration = Math.max(5, (window.innerWidth + 400) / (this.config.speed || 50));
           this.element.style.animation = \`datetime-slide \${duration}s linear infinite\`;
           
+          // Add keyframes if not already present
           if (!document.getElementById('datetime-slide-keyframes')) {
             const style = document.createElement('style');
             style.id = 'datetime-slide-keyframes';
             style.textContent = \`
               @keyframes datetime-slide {
-                from { transform: translateX(100vw); }
-                to { transform: translateX(-100%); }
+                from { 
+                  left: 100vw;
+                  transform: translateX(0);
+                }
+                to { 
+                  left: -100%;
+                  transform: translateX(-100%);
+                }
               }
             \`;
             document.head.appendChild(style);
@@ -737,34 +706,35 @@ After adding fonts, click "Reload Addons" to refresh the font list.
         },
         
         startBouncing() {
-          let x = 50;
-          let y = 50;
-          let dx = (this.config.speed || 50) / 60;
-          let dy = (this.config.speed || 50) / 60;
+          let x = Math.random() * (window.innerWidth - 200);
+          let y = Math.random() * (window.innerHeight - 100);
+          let dx = (this.config.speed || 50) / 30; // Reduced speed divisor for smoother animation
+          let dy = (this.config.speed || 50) / 30;
           
-          this.element.style.position = 'absolute';
+          // Ensure minimum speed
+          if (Math.abs(dx) < 1) dx = dx < 0 ? -1 : 1;
+          if (Math.abs(dy) < 1) dy = dy < 0 ? -1 : 1;
           
           const animate = () => {
             const rect = this.element.getBoundingClientRect();
-            const containerRect = document.body.getBoundingClientRect();
             
             x += dx;
             y += dy;
             
-            if (x <= 0 || x + rect.width >= containerRect.width) {
+            // Bounce off walls
+            if (x <= 0 || x + rect.width >= window.innerWidth) {
               dx = -dx;
-              x = Math.max(0, Math.min(x, containerRect.width - rect.width));
+              x = Math.max(0, Math.min(x, window.innerWidth - rect.width));
             }
-            if (y <= 0 || y + rect.height >= containerRect.height) {
+            if (y <= 0 || y + rect.height >= window.innerHeight) {
               dy = -dy;
-              y = Math.max(0, Math.min(y, containerRect.height - rect.height));
+              y = Math.max(0, Math.min(y, window.innerHeight - rect.height));
             }
             
             this.element.style.left = \`\${x}px\`;
             this.element.style.top = \`\${y}px\`;
             this.element.style.right = 'auto';
             this.element.style.bottom = 'auto';
-            this.element.style.transform = 'none';
             
             this.bounceAnimFrame = requestAnimationFrame(animate);
           };
@@ -782,15 +752,15 @@ After adding fonts, click "Reload Addons" to refresh the font list.
             ];
             
             const pos = positions[Math.floor(Math.random() * positions.length)];
-            this.element.style.top = pos.top;
-            this.element.style.bottom = pos.bottom;
-            this.element.style.left = pos.left;
-            this.element.style.right = pos.right;
+            Object.assign(this.element.style, pos);
             this.element.style.transform = 'none';
           };
           
-          teleport();
-          this.teleportInterval = setInterval(teleport, (this.config.speed || 5) * 1000);
+          teleport(); // Initial teleport
+          
+          // Calculate interval based on speed (inverse relationship)
+          const intervalMs = Math.max(1000, (200 - (this.config.speed || 50)) * 50);
+          this.teleportInterval = setInterval(teleport, intervalMs);
         },
         
         clearIntervals() {
@@ -813,21 +783,25 @@ After adding fonts, click "Reload Addons" to refresh the font list.
         remove() {
           console.log('Removing DateTimeAddon display');
           this.clearIntervals();
+          
           if (this.element) {
             this.element.remove();
             this.element = null;
           }
           
+          // Remove keyframes
           const keyframes = document.getElementById('datetime-slide-keyframes');
           if (keyframes) {
             keyframes.remove();
           }
           
+          // Remove custom font
           if (this.customFont) {
             try {
               document.fonts.delete(this.customFont);
+              this.customFont = null;
             } catch (e) {
-              console.log('Could not delete custom font:', e);
+              console.log('Could not delete custom font:', e.message);
             }
           }
         },
@@ -839,12 +813,13 @@ After adding fonts, click "Reload Addons" to refresh the font list.
         updateConfig(newConfig) {
           console.log('Frontend received config update:', newConfig);
           this.config = { ...this.config, ...newConfig };
-          this.init();
+          this.init(); // Restart with new config
         }
       };
       
+      // Initialize the addon
       console.log('Initializing DateTimeAddon frontend script');
-      window.DateTimeAddon.init();
+      window.dateTimeAddon.init();
     `;
   }
 }
