@@ -57,13 +57,14 @@ async function loadTabContent(tabName) {
     }
 }
 
-// Tab initialization functions
+// Tab initialization functions - SIMPLIFIED (no manual resolution)
 function initDisplayTab() {
     // Set current values
     document.getElementById('rotation').value = config.rotation || 0;
-    document.getElementById('image-duration').value = config.imageDuration / 1000;
-    document.getElementById('duration-value').textContent = `${config.imageDuration / 1000} seconds`;
-    document.getElementById('video-position').value = config.videoPosition;
+    document.getElementById('image-duration').value = (config.imageDuration || 5000) / 1000;
+    document.getElementById('duration-value').textContent = `${(config.imageDuration || 5000) / 1000} seconds`;
+    document.getElementById('video-position').value = config.videoPosition || 'after';
+    document.getElementById('image-scaling').value = config.imageScaling || 'contain';
     
     // Add event listeners
     document.getElementById('image-duration').addEventListener('input', (e) => {
@@ -108,13 +109,24 @@ async function initAddonsTab() {
 }
 
 function initNetworkTab() {
-    // Set current values
-    document.getElementById('device-name').value = config.displayName || '';
-    document.getElementById('static-ip').value = config.staticIp || '';
-    document.getElementById('localhost-only').checked = config.localhostOnly || false;
-    document.getElementById('app-port').value = config.port || 3000;
-    document.getElementById('ws-port').value = config.wsPort || 3001;
-    document.getElementById('discovery-port').value = config.discoveryPort || 3002;
+    // Force clear browser's form cache for checkboxes first
+    document.getElementById('localhost-only').checked = false;
+    
+    // Small delay to ensure config is loaded, then set proper values
+    setTimeout(() => {
+        // Set current values with proper config data
+        document.getElementById('device-name').value = config.displayName || '';
+        document.getElementById('static-ip').value = config.staticIp || '';
+        
+        // FIXED: Explicit boolean check with logging for debugging
+        const localhostOnlyValue = config.localhostOnly === true;
+        console.log('Setting localhost-only checkbox:', localhostOnlyValue, 'from config:', config.localhostOnly);
+        document.getElementById('localhost-only').checked = localhostOnlyValue;
+        
+        document.getElementById('app-port').value = config.port || 3000;
+        document.getElementById('ws-port').value = config.wsPort || 3001;
+        document.getElementById('discovery-port').value = config.discoveryPort || 3002;
+    }, 100);
     
     // Add event listeners
     document.getElementById('save-network').addEventListener('click', saveNetworkSettings);
@@ -264,7 +276,7 @@ async function loadConfig() {
             showAuthModal();
         }
     } catch (err) {
-        showMessage('Failed to load configuration', 'error');
+        showToast('Failed to load configuration', 'error');
     }
 }
 
@@ -285,7 +297,7 @@ async function loadAddonsList() {
         updateAddonsList();
     } catch (err) {
         console.error('Failed to load addons:', err);
-        showMessage('Failed to load addons', 'error');
+        showToast('Failed to load addons', 'error');
     }
 }
 
@@ -379,15 +391,17 @@ function setupEventListeners() {
     });
 }
 
-// Save functions
+// Save functions - SIMPLIFIED (no manual resolution)
 async function saveDisplaySettings() {
     const data = {
         rotation: parseInt(document.getElementById('rotation').value),
         imageDuration: parseInt(document.getElementById('image-duration').value) * 1000,
         videoPosition: document.getElementById('video-position').value,
+        imageScaling: document.getElementById('image-scaling').value,
         password: authPassword
     };
     
+    console.log('Saving display settings:', data);
     await saveToDevices('/api/config', data, 'Display settings');
 }
 
@@ -421,13 +435,13 @@ async function saveNetworkSettings() {
                 authPassword = newPassword;
             }
             
-            showMessage('Network settings saved successfully. Restart the app to apply port changes.', 'success');
+            showToast('Network settings saved successfully. Restart the app to apply port changes.', 'success');
             await loadConfig();
         } else {
             throw new Error('Failed to save settings');
         }
     } catch (err) {
-        showMessage('Failed to save network settings', 'error');
+        showToast('Failed to save network settings', 'error');
     }
 }
 
@@ -440,19 +454,19 @@ async function reloadAddons() {
         });
         
         if (response.ok) {
-            showMessage('Addons reloaded successfully', 'success');
+            showToast('Addons reloaded successfully', 'success');
             await loadAddonsList();
         } else {
             throw new Error('Failed to reload addons');
         }
     } catch (err) {
-        showMessage('Failed to reload addons', 'error');
+        showToast('Failed to reload addons', 'error');
         console.error('Addon reload error:', err);
     }
 }
 
 function openAddonsFolder() {
-    showMessage('Addons folder: [App Directory]/Addons', 'success');
+    showToast('Addons folder: [App Directory]/Addons', 'success');
 }
 
 // Network functions (called from network tab)
@@ -483,7 +497,7 @@ async function addDevice() {
     const name = document.getElementById('manual-name').value;
     
     if (!ip || !name) {
-        showMessage('Please enter IP address and device name', 'error');
+        showToast('Please enter IP address and device name', 'error');
         return;
     }
     
@@ -495,7 +509,7 @@ async function addDevice() {
         });
         
         if (response.ok) {
-            showMessage('Device added successfully', 'success');
+            showToast('Device added successfully', 'success');
             document.getElementById('manual-ip').value = '';
             document.getElementById('manual-port').value = '3000';
             document.getElementById('manual-name').value = '';
@@ -504,7 +518,7 @@ async function addDevice() {
             throw new Error('Failed to add device');
         }
     } catch (err) {
-        showMessage('Failed to add device', 'error');
+        showToast('Failed to add device', 'error');
     }
 }
 
@@ -519,13 +533,13 @@ async function deletePeer(peerId) {
         });
         
         if (response.ok) {
-            showMessage('Device removed successfully', 'success');
+            showToast('Device removed successfully', 'success');
             await loadPeers();
         } else {
             throw new Error('Failed to remove device');
         }
     } catch (err) {
-        showMessage('Failed to remove device', 'error');
+        showToast('Failed to remove device', 'error');
     }
 }
 
@@ -535,12 +549,12 @@ async function uploadUpdate() {
     const file = fileInput.files[0];
     
     if (!file) {
-        showMessage('Please select an update file', 'error');
+        showToast('Please select an update file', 'error');
         return;
     }
     
     if (selectedDevices.size === 0) {
-        showMessage('Please select at least one device', 'error');
+        showToast('Please select at least one device', 'error');
         return;
     }
     
@@ -551,7 +565,7 @@ async function uploadUpdate() {
     let successCount = 0;
     let failCount = 0;
     
-    showMessage('Uploading update... Please wait', 'success');
+    showToast('Uploading update... Please wait', 'success');
     
     // Upload to each selected device
     for (const deviceId of selectedDevices) {
@@ -599,11 +613,11 @@ async function uploadUpdate() {
     fileInput.value = '';
     
     if (successCount > 0 && failCount === 0) {
-        showMessage(`Update uploaded to ${successCount} device(s). Devices will restart...`, 'success');
+        showToast(`Update uploaded to ${successCount} device(s). Devices will restart...`, 'success');
     } else if (successCount > 0 && failCount > 0) {
-        showMessage(`Update sent to ${successCount} device(s), failed on ${failCount}`, 'error');
+        showToast(`Update sent to ${successCount} device(s), failed on ${failCount}`, 'error');
     } else {
-        showMessage('Failed to upload update to all devices', 'error');
+        showToast('Failed to upload update to all devices', 'error');
     }
 }
 
@@ -622,20 +636,20 @@ async function saveToDevices(endpoint, data, settingName) {
             });
             
             if (response.ok) {
-                showMessage(`${settingName} saved to ${getDeviceName(editingDeviceId)}`, 'success');
+                showToast(`${settingName} saved to ${getDeviceName(editingDeviceId)}`, 'success');
                 await loadConfig();
             } else {
                 throw new Error('Failed to save settings');
             }
         } catch (err) {
-            showMessage(`Failed to save ${settingName.toLowerCase()} to ${getDeviceName(editingDeviceId)}`, 'error');
+            showToast(`Failed to save ${settingName.toLowerCase()} to ${getDeviceName(editingDeviceId)}`, 'error');
         }
         return;
     }
     
     // If no device is being edited, save to all selected devices
     if (selectedDevices.size === 0) {
-        showMessage('Please select at least one device', 'error');
+        showToast('Please select at least one device', 'error');
         return;
     }
     
@@ -672,11 +686,11 @@ async function saveToDevices(endpoint, data, settingName) {
     
     // Show result message
     if (successCount > 0 && failCount === 0) {
-        showMessage(`${settingName} saved to ${successCount} device(s)`, 'success');
+        showToast(`${settingName} saved to ${successCount} device(s)`, 'success');
     } else if (successCount > 0 && failCount > 0) {
-        showMessage(`${settingName} saved to ${successCount} device(s), failed on ${failCount}`, 'error');
+        showToast(`${settingName} saved to ${successCount} device(s), failed on ${failCount}`, 'error');
     } else {
-        showMessage(`Failed to save ${settingName.toLowerCase()} to all devices`, 'error');
+        showToast(`Failed to save ${settingName.toLowerCase()} to all devices`, 'error');
     }
     
     // Reload config if current device was updated
@@ -708,13 +722,13 @@ async function loadMediaList() {
             mediaList.appendChild(item);
         });
     } catch (err) {
-        showMessage('Failed to load media list', 'error');
+        showToast('Failed to load media list', 'error');
     }
 }
 
 async function handleFiles(files) {
     if (selectedDevices.size === 0) {
-        showMessage('Please select at least one device', 'error');
+        showToast('Please select at least one device', 'error');
         return;
     }
     
@@ -760,11 +774,11 @@ async function handleFiles(files) {
     }
     
     if (successCount > 0 && failCount === 0) {
-        showMessage(`Files uploaded successfully to ${successCount} device(s)`, 'success');
+        showToast(`Files uploaded successfully to ${successCount} device(s)`, 'success');
     } else if (successCount > 0 && failCount > 0) {
-        showMessage(`Files uploaded to ${successCount} device(s), failed on ${failCount}`, 'error');
+        showToast(`Files uploaded to ${successCount} device(s), failed on ${failCount}`, 'error');
     } else {
-        showMessage('Failed to upload files to all devices', 'error');
+        showToast('Failed to upload files to all devices', 'error');
     }
     
     // Reload media list if current device is being edited
@@ -784,13 +798,13 @@ async function deleteMedia(filename) {
         });
         
         if (response.ok) {
-            showMessage('File deleted successfully', 'success');
+            showToast('File deleted successfully', 'success');
             await loadMediaList();
         } else {
             throw new Error('Failed to delete file');
         }
     } catch (err) {
-        showMessage('Failed to delete file', 'error');
+        showToast('Failed to delete file', 'error');
     }
 }
 
@@ -987,9 +1001,9 @@ async function saveAddonSettings(addonId) {
     
     await saveToDevices(`/api/addons/${addonId}/config`, { ...config, password: authPassword }, 'Addon settings');
     
-    // Reload addons list if current device was updated
-    if (selectedDevices.has('current') || editingDeviceId === 'current') {
-        await loadAddonsList();
+    // Update local addon state to reflect the saved settings
+    if (addons[addonId]) {
+        Object.assign(addons[addonId].config, config);
     }
 }
 
@@ -1026,10 +1040,75 @@ function setupAddonEventListeners() {
                 console.error('Failed to toggle addon:', err);
                 // Revert toggle state
                 e.target.checked = !enabled;
-                showMessage('Failed to toggle addon', 'error');
+                showToast('Failed to toggle addon', 'error');
             }
         });
     });
+}
+
+// Toast notification system
+function showToast(text, type) {
+    // Create toast container if it doesn't exist
+    let toastContainer = document.getElementById('toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            pointer-events: none;
+        `;
+        document.body.appendChild(toastContainer);
+    }
+    
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = text;
+    
+    // Toast styling
+    toast.style.cssText = `
+        background: ${type === 'success' ? '#27ae60' : type === 'error' ? '#e74c3c' : '#3498db'};
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        opacity: 0;
+        transform: translateX(100%);
+        transition: all 0.3s ease;
+        pointer-events: auto;
+        max-width: 350px;
+        word-wrap: break-word;
+        font-size: 14px;
+        line-height: 1.4;
+    `;
+    
+    toastContainer.appendChild(toast);
+    
+    // Animate in
+    setTimeout(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateX(0)';
+    }, 10);
+    
+    // Remove after delay
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    }, 3000);
+}
+
+// Keep legacy showMessage for backward compatibility
+function showMessage(text, type) {
+    showToast(text, type);
 }
 
 // Utility functions
@@ -1042,16 +1121,6 @@ function submitAuth() {
     authPassword = document.getElementById('auth-password').value;
     document.getElementById('auth-modal').classList.remove('show');
     loadConfig();
-}
-
-function showMessage(text, type) {
-    const message = document.getElementById('message');
-    message.textContent = text;
-    message.className = `message ${type} show`;
-    
-    setTimeout(() => {
-        message.classList.remove('show');
-    }, 3000);
 }
 
 function formatFileSize(bytes) {
