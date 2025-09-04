@@ -15,6 +15,10 @@ let config = {
   displayName: os.hostname(),
   imageDuration: 5000, // milliseconds
   videoPosition: 'after', // 'between' or 'after'
+  imageScaling: 'contain', // 'contain', 'fill', 'cover'
+  manualResolution: false,
+  manualWidth: null,
+  manualHeight: null,
   password: '',
   staticIp: '',
   localhostOnly: false, // New option
@@ -383,9 +387,16 @@ function setupWebServer() {
       displayName: config.displayName,
       imageDuration: config.imageDuration,
       videoPosition: config.videoPosition,
+      imageScaling: config.imageScaling,
+      manualResolution: config.manualResolution,
+      manualWidth: config.manualWidth,
+      manualHeight: config.manualHeight,
       hasPassword: !!config.password,
       staticIp: config.staticIp,
+      localhostOnly: config.localhostOnly,
       port: config.port,
+      wsPort: config.wsPort,
+      discoveryPort: config.discoveryPort,
       peers: config.peers,
       rotation: config.rotation,
       version: app.getVersion()
@@ -908,6 +919,10 @@ function setupWebSocketServer() {
           data: {
             imageDuration: config.imageDuration,
             videoPosition: config.videoPosition,
+            imageScaling: config.imageScaling,
+            manualResolution: config.manualResolution,
+            manualWidth: config.manualWidth,
+            manualHeight: config.manualHeight,
             rotation: config.rotation
           }
         }));
@@ -926,6 +941,10 @@ function broadcastConfig() {
           data: {
             imageDuration: config.imageDuration,
             videoPosition: config.videoPosition,
+            imageScaling: config.imageScaling,
+            manualResolution: config.manualResolution,
+            manualWidth: config.manualWidth,
+            manualHeight: config.manualHeight,
             rotation: config.rotation
           }
         }));
@@ -937,6 +956,10 @@ function broadcastConfig() {
     mainWindow.webContents.send('config-update', {
       imageDuration: config.imageDuration,
       videoPosition: config.videoPosition,
+      imageScaling: config.imageScaling,
+      manualResolution: config.manualResolution,
+      manualWidth: config.manualWidth,
+      manualHeight: config.manualHeight,
       rotation: config.rotation
     });
   }
@@ -1079,6 +1102,10 @@ ipcMain.handle('get-config', () => {
   return {
     imageDuration: config.imageDuration,
     videoPosition: config.videoPosition,
+    imageScaling: config.imageScaling,
+    manualResolution: config.manualResolution,
+    manualWidth: config.manualWidth,
+    manualHeight: config.manualHeight,
     rotation: config.rotation
   };
 });

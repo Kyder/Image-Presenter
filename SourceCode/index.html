@@ -22,6 +22,9 @@
         
     </div>
     
+    <!-- Load image scaling logic first -->
+    <script src="image-scaling.js"></script>
+    
     <script>
         // Global variables
         let mediaFiles = [];
@@ -29,6 +32,7 @@
         let config = {
             imageDuration: 5000,
             videoPosition: 'after',
+            imageScaling: 'contain', // Default: do nothing (original behavior)
             rotation: 0
         };
         let isPlaying = false;
@@ -39,7 +43,11 @@
         async function init() {
             try {
                 await loadConfig();
-                console.log('Config loaded');
+                console.log('App initialized with config:', config);
+                
+                // Set the initial scaling mode in our scaler
+                window.imageScaler.setScalingMode(config.imageScaling);
+                
                 await loadMedia();
                 setupEventListeners();
                 applyRotation();
@@ -53,7 +61,7 @@
             }
         }
         
-        // Apply rotation to container
+        // Apply rotation to container (simplified - no manual resolution)
         function applyRotation() {
             const container = document.getElementById('main-container');
             container.style.transform = `rotate(${config.rotation}deg)`;
@@ -129,21 +137,20 @@
             }
         }
         
-// Get addon frontend script
-async function getAddonFrontendScript(addonId, addonConfig) {
-    // Request the frontend script from the main process via IPC
-    try {
-        if (window.electronAPI && window.electronAPI.getAddonFrontendScript) {
-            return await window.electronAPI.getAddonFrontendScript(addonId, addonConfig);
-        } else {
-            console.warn(`Cannot get frontend script for addon ${addonId}: electronAPI not available`);
-            return null;
+        // Get addon frontend script
+        async function getAddonFrontendScript(addonId, addonConfig) {
+            try {
+                if (window.electronAPI && window.electronAPI.getAddonFrontendScript) {
+                    return await window.electronAPI.getAddonFrontendScript(addonId, addonConfig);
+                } else {
+                    console.warn(`Cannot get frontend script for addon ${addonId}: electronAPI not available`);
+                    return null;
+                }
+            } catch (err) {
+                console.error(`Failed to get frontend script for addon ${addonId}:`, err);
+                return null;
+            }
         }
-    } catch (err) {
-        console.error(`Failed to get frontend script for addon ${addonId}:`, err);
-        return null;
-    }
-}
         
         // Load configuration
         async function loadConfig() {
@@ -190,9 +197,25 @@ async function getAddonFrontendScript(addonId, addonConfig) {
         function setupEventListeners() {
             // Listen for config updates
             window.electronAPI.onConfigUpdate(async (newConfig) => {
+                console.log('=== CONFIG UPDATE ===');
+                console.log('Old config:', config);
+                console.log('New config:', newConfig);
+                
+                const oldScalingMode = config.imageScaling;
+                const newScalingMode = newConfig.imageScaling;
+                
                 config = newConfig;
+                
+                // Update scaling mode if it changed
+                if (oldScalingMode !== newScalingMode) {
+                    console.log(`Image scaling changed: ${oldScalingMode} → ${newScalingMode}`);
+                    window.imageScaler.setScalingMode(newScalingMode);
+                    window.imageScaler.updateActiveMedia();
+                }
+                
                 applyRotation();
                 await loadFrontendAddons();
+                
                 if (isPlaying && mediaFiles[currentIndex]?.type === 'image') {
                     clearTimeout(currentTimeout);
                     currentTimeout = setTimeout(nextMedia, config.imageDuration);
@@ -223,10 +246,15 @@ async function getAddonFrontendScript(addonId, addonConfig) {
             showMedia(currentIndex);
         }
         
-        // Show media item - FIXED VERSION with proper transitions
+        // Show media item - SIMPLIFIED VERSION using imageScaler
         function showMedia(index) {
             const container = document.getElementById('media-container');
             const file = mediaFiles[index];
+            
+            console.log(`\n=== SHOWING MEDIA ${index} ===`);
+            console.log(`File: ${file.name}`);
+            console.log(`Type: ${file.type}`);
+            console.log(`Current scaling mode: ${config.imageScaling}`);
             
             // Create new media element
             let newElement;
@@ -236,26 +264,38 @@ async function getAddonFrontendScript(addonId, addonConfig) {
                 newElement.className = 'media-item';
                 newElement.src = `file://${file.path}`;
                 
+                console.log('Created image element, waiting for load...');
+                
                 newElement.onload = () => {
+                    console.log(`Image loaded successfully: ${file.name}`);
+                    
                     // Add to container first (invisible)
                     container.appendChild(newElement);
                     
-                    // Small delay to ensure DOM is updated
+                    // Small delay to ensure DOM is updated and CSS is applied
                     setTimeout(() => {
                         // Fade out current active element
                         const currentActive = container.querySelector('.media-item.active');
                         if (currentActive) {
+                            console.log('Fading out previous media');
                             currentActive.classList.remove('active');
                         }
                         
                         // Fade in new element
                         newElement.classList.add('active');
+                        console.log(`Image activated with final classes: ${newElement.className}`);
+                        
+                        // FIXED: Apply scaling AFTER element is active and visible
+                        setTimeout(() => {
+                            window.imageScaler.applyScaling(newElement);
+                        }, 100); // Wait for opacity transition to start
                         
                         // Remove old elements after transition
                         setTimeout(() => {
                             const oldElements = container.querySelectorAll('.media-item:not(.active)');
+                            console.log(`Removing ${oldElements.length} old elements`);
                             oldElements.forEach(el => el.remove());
-                        }, 600); // Slightly longer than transition duration
+                        }, 600);
                         
                         // Set timeout for next image
                         currentTimeout = setTimeout(nextMedia, config.imageDuration);
@@ -274,26 +314,35 @@ async function getAddonFrontendScript(addonId, addonConfig) {
                 newElement.autoplay = true;
                 newElement.muted = true;
                 
+                console.log('Created video element, waiting for load...');
+                
+                // Apply scaling to video using imageScaler
+                window.imageScaler.applyScaling(newElement);
+                
                 newElement.onloadeddata = () => {
+                    console.log(`Video loaded successfully: ${file.name}`);
+                    
                     // Add to container first (invisible)
                     container.appendChild(newElement);
                     
-                    // Small delay to ensure DOM is updated
                     setTimeout(() => {
                         // Fade out current active element
                         const currentActive = container.querySelector('.media-item.active');
                         if (currentActive) {
+                            console.log('Fading out previous media');
                             currentActive.classList.remove('active');
                         }
                         
                         // Fade in new element
                         newElement.classList.add('active');
+                        console.log(`Video activated with final classes: ${newElement.className}`);
                         
                         // Remove old elements after transition
                         setTimeout(() => {
                             const oldElements = container.querySelectorAll('.media-item:not(.active)');
+                            console.log(`Removing ${oldElements.length} old elements`);
                             oldElements.forEach(el => el.remove());
-                        }, 600); // Slightly longer than transition duration
+                        }, 600);
                     }, 50);
                 };
                 

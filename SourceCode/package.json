@@ -40,6 +40,7 @@
       "preload.js",
       "index.html",
       "mainapp.css",
+      "image-scaling.js",
       "web/**/*",
       "node_modules/**/*",
       "!node_modules/.cache"
