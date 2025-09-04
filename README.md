@@ -7,6 +7,7 @@ This is Electron (node.js) app.
 Basic functions:
 - Image presentation with adjustable delay
 - Screen rotation
+- Image fit to screen, strech to screen or zoom and crop to screen
 - Multidevice support (apply settings to one device or multiple)
 - Media upload (JPG, PNG, SVG) and option to delete files
 - Network setings where you can adjust ports or IP and name
@@ -27,12 +28,9 @@ Known issues:
 
 Main App: 
 
-Video MP4 doesnt work even when listed as supported.
+Video MP4, some videos works and some not.
 
-Web Control:
-- In Network tab "localhost only mode" is not showing if it is on or not but actually works and changes state in the config.jsson
-- In Addon tab, when you click on save button, it will reload the page and close settings for every addon
-- In Display tab, screen rotations works but two of them can have wrong names
+
 
 Addons:
 
