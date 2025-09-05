@@ -17,35 +17,34 @@
             </div>
         </div>
         
-        <!-- Container for addon elements -->
         <div id="addon-container"></div>
         
     </div>
     
-    <!-- Load image scaling logic first -->
     <script src="image-scaling.js"></script>
     
     <script>
-        // Global variables
         let mediaFiles = [];
         let currentIndex = 0;
         let config = {
             imageDuration: 5000,
             videoPosition: 'after',
-            imageScaling: 'contain', // Default: do nothing (original behavior)
+            imageScaling: 'contain',
             rotation: 0
         };
         let isPlaying = false;
         let currentTimeout = null;
         let loadedAddons = new Map();
         
-        // Initialize
+        let preloadedImages = new Map();
+        let preloadQueue = [];
+        let isPreloading = false;
+        
         async function init() {
             try {
                 await loadConfig();
                 console.log('App initialized with config:', config);
                 
-                // Set the initial scaling mode in our scaler
                 window.imageScaler.setScalingMode(config.imageScaling);
                 
                 await loadMedia();
@@ -61,12 +60,10 @@
             }
         }
         
-        // Apply rotation to container (simplified - no manual resolution)
         function applyRotation() {
             const container = document.getElementById('main-container');
             container.style.transform = `rotate(${config.rotation}deg)`;
             
-            // Adjust container size for 90/-90 degree rotations
             if (Math.abs(config.rotation) === 90 || Math.abs(config.rotation) === 270) {
                 container.style.width = '100vh';
                 container.style.height = '100vw';
@@ -76,13 +73,10 @@
             }
         }
         
-        // Load and initialize frontend addons
         async function loadFrontendAddons() {
             try {
-                // Get enabled addons from config
                 const addons = await window.electronAPI.getAddons();
                 
-                // Clear existing addons
                 for (const [id, addon] of loadedAddons) {
                     if (addon.cleanup) {
                         addon.cleanup();
@@ -90,25 +84,20 @@
                 }
                 loadedAddons.clear();
                 
-                // Clear addon container
                 const addonContainer = document.getElementById('addon-container');
                 addonContainer.innerHTML = '';
                 
-                // Load enabled addons
                 for (const [id, addonConfig] of Object.entries(addons)) {
                     if (!addonConfig.enabled) continue;
                     
                     try {
-                        // Get frontend script for this addon
                         const script = await getAddonFrontendScript(id, addonConfig);
                         
                         if (script) {
-                            // Create and execute addon script
                             const scriptElement = document.createElement('script');
                             scriptElement.textContent = script;
                             document.head.appendChild(scriptElement);
                             
-                            // Store addon info
                             loadedAddons.set(id, {
                                 info: addonConfig.info,
                                 config: addonConfig.config,
@@ -117,7 +106,6 @@
                                     if (scriptElement.parentNode) {
                                         scriptElement.parentNode.removeChild(scriptElement);
                                     }
-                                    // Call addon-specific cleanup
                                     if (window[`${id}Addon`] && window[`${id}Addon`].cleanup) {
                                         window[`${id}Addon`].cleanup();
                                     }
@@ -137,7 +125,6 @@
             }
         }
         
-        // Get addon frontend script
         async function getAddonFrontendScript(addonId, addonConfig) {
             try {
                 if (window.electronAPI && window.electronAPI.getAddonFrontendScript) {
@@ -152,7 +139,6 @@
             }
         }
         
-        // Load configuration
         async function loadConfig() {
             try {
                 config = await window.electronAPI.getConfig();
@@ -162,21 +148,17 @@
             }
         }
         
-        // Load media files
         async function loadMedia() {
             try {
                 mediaFiles = await window.electronAPI.getMediaFiles();
                 
-                // Sort media based on video position setting
                 if (config.videoPosition === 'after') {
-                    // Images first, then videos
                     mediaFiles.sort((a, b) => {
                         if (a.type === 'image' && b.type === 'video') return -1;
                         if (a.type === 'video' && b.type === 'image') return 1;
                         return a.name.localeCompare(b.name);
                     });
                 } else {
-                    // Natural alphabetical order
                     mediaFiles.sort((a, b) => a.name.localeCompare(b.name));
                 }
                 
@@ -186,6 +168,7 @@
                     document.getElementById('no-media').style.display = 'block';
                 } else {
                     document.getElementById('no-media').style.display = 'none';
+                    startImagePreloading();
                 }
             } catch (err) {
                 console.error('Failed to load media:', err);
@@ -193,22 +176,68 @@
             }
         }
         
-        // Setup event listeners
+        function startImagePreloading() {
+            const imageFiles = mediaFiles.filter(file => file.type === 'image');
+            
+            for (let i = 0; i < Math.min(3, imageFiles.length); i++) {
+                preloadImage(imageFiles[i]);
+            }
+            
+            for (let i = 3; i < imageFiles.length; i++) {
+                preloadQueue.push(imageFiles[i]);
+            }
+            
+            if (preloadQueue.length > 0 && !isPreloading) {
+                continuePreloading();
+            }
+        }
+        
+        function preloadImage(file) {
+            if (preloadedImages.has(file.path)) return;
+            
+            const img = new Image();
+            img.onload = () => {
+                preloadedImages.set(file.path, img);
+                console.log(`Preloaded: ${file.name}`);
+            };
+            img.onerror = () => {
+                console.warn(`Failed to preload: ${file.name}`);
+            };
+            img.src = `file://${file.path}`;
+        }
+        
+        function continuePreloading() {
+            if (preloadQueue.length === 0 || isPreloading) return;
+            
+            isPreloading = true;
+            const file = preloadQueue.shift();
+            
+            const img = new Image();
+            img.onload = () => {
+                preloadedImages.set(file.path, img);
+                console.log(`Background preloaded: ${file.name}`);
+                isPreloading = false;
+                setTimeout(continuePreloading, 100);
+            };
+            img.onerror = () => {
+                console.warn(`Failed to background preload: ${file.name}`);
+                isPreloading = false;
+                setTimeout(continuePreloading, 100);
+            };
+            img.src = `file://${file.path}`;
+        }
+        
         function setupEventListeners() {
-            // Listen for config updates
             window.electronAPI.onConfigUpdate(async (newConfig) => {
-                console.log('=== CONFIG UPDATE ===');
-                console.log('Old config:', config);
-                console.log('New config:', newConfig);
+                console.log('Config update received');
                 
                 const oldScalingMode = config.imageScaling;
                 const newScalingMode = newConfig.imageScaling;
                 
                 config = newConfig;
                 
-                // Update scaling mode if it changed
                 if (oldScalingMode !== newScalingMode) {
-                    console.log(`Image scaling changed: ${oldScalingMode} → ${newScalingMode}`);
+                    console.log(`Image scaling changed: ${oldScalingMode} to ${newScalingMode}`);
                     window.imageScaler.setScalingMode(newScalingMode);
                     window.imageScaler.updateActiveMedia();
                 }
@@ -222,7 +251,6 @@
                 }
             });
             
-            // Listen for media updates
             window.electronAPI.onMediaUpdate(async () => {
                 await loadMedia();
                 if (!isPlaying && mediaFiles.length > 0) {
@@ -230,14 +258,12 @@
                 }
             });
             
-            // Listen for addon updates
             window.electronAPI.onAddonsUpdate(async () => {
                 console.log('Addons updated, reloading...');
                 await loadFrontendAddons();
             });
         }
         
-        // Start playback
         function startPlayback() {
             if (mediaFiles.length === 0) return;
             
@@ -246,7 +272,7 @@
             showMedia(currentIndex);
         }
         
-        // Show media item - SIMPLIFIED VERSION using imageScaler
+        // FIXED showMedia function - prevents image layering issues
         function showMedia(index) {
             const container = document.getElementById('media-container');
             const file = mediaFiles[index];
@@ -254,7 +280,13 @@
             console.log(`\n=== SHOWING MEDIA ${index} ===`);
             console.log(`File: ${file.name}`);
             console.log(`Type: ${file.type}`);
-            console.log(`Current scaling mode: ${config.imageScaling}`);
+            
+            // IMMEDIATE CLEANUP: Remove all old elements before showing new one
+            const oldElements = container.querySelectorAll('.media-item');
+            oldElements.forEach(el => {
+                el.style.transition = 'none';
+                el.remove();
+            });
             
             // Create new media element
             let newElement;
@@ -262,50 +294,79 @@
             if (file.type === 'image') {
                 newElement = document.createElement('img');
                 newElement.className = 'media-item';
-                newElement.src = `file://${file.path}`;
                 
-                console.log('Created image element, waiting for load...');
+                // Set high z-index and ensure it covers everything
+                newElement.style.cssText = `
+                    position: absolute;
+                    opacity: 0;
+                    transition: opacity 0.5s ease-in-out;
+                    z-index: 100;
+                    transform: translateZ(0);
+                    backface-visibility: hidden;
+                    will-change: opacity;
+                    image-rendering: auto;
+                    contain: layout style paint;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: #000;
+                `;
                 
-                newElement.onload = () => {
-                    console.log(`Image loaded successfully: ${file.name}`);
+                const preloadedImg = preloadedImages.get(file.path);
+                
+                if (preloadedImg) {
+                    console.log(`Using preloaded image: ${file.name}`);
+                    newElement.src = preloadedImg.src;
                     
-                    // Add to container first (invisible)
+                    // Add to container immediately
                     container.appendChild(newElement);
                     
-                    // Small delay to ensure DOM is updated and CSS is applied
-                    setTimeout(() => {
-                        // Fade out current active element
-                        const currentActive = container.querySelector('.media-item.active');
-                        if (currentActive) {
-                            console.log('Fading out previous media');
-                            currentActive.classList.remove('active');
-                        }
-                        
-                        // Fade in new element
+                    // Force layout calculation
+                    newElement.offsetHeight;
+                    
+                    // Apply scaling before making visible
+                    window.imageScaler.applyScaling(newElement);
+                    
+                    // Make visible with smooth transition
+                    requestAnimationFrame(() => {
                         newElement.classList.add('active');
-                        console.log(`Image activated with final classes: ${newElement.className}`);
+                        newElement.style.opacity = '1';
+                        console.log(`Image activated: ${file.name}`);
+                    });
+                    
+                    // Set timeout for next image
+                    currentTimeout = setTimeout(nextMedia, config.imageDuration);
+                    
+                } else {
+                    console.log(`Loading image normally: ${file.name}`);
+                    
+                    newElement.onload = () => {
+                        console.log(`Image loaded: ${file.name}`);
                         
-                        // FIXED: Apply scaling AFTER element is active and visible
-                        setTimeout(() => {
-                            window.imageScaler.applyScaling(newElement);
-                        }, 100); // Wait for opacity transition to start
+                        // Add to container
+                        container.appendChild(newElement);
+                        newElement.offsetHeight;
                         
-                        // Remove old elements after transition
-                        setTimeout(() => {
-                            const oldElements = container.querySelectorAll('.media-item:not(.active)');
-                            console.log(`Removing ${oldElements.length} old elements`);
-                            oldElements.forEach(el => el.remove());
-                        }, 600);
+                        // Apply scaling before making visible
+                        window.imageScaler.applyScaling(newElement);
                         
-                        // Set timeout for next image
+                        // Make visible
+                        requestAnimationFrame(() => {
+                            newElement.classList.add('active');
+                            newElement.style.opacity = '1';
+                        });
+                        
                         currentTimeout = setTimeout(nextMedia, config.imageDuration);
-                    }, 50);
-                };
-                
-                newElement.onerror = () => {
-                    console.error('Failed to load image:', file.name);
-                    nextMedia();
-                };
+                    };
+                    
+                    newElement.onerror = () => {
+                        console.error('Failed to load image:', file.name);
+                        nextMedia();
+                    };
+                    
+                    newElement.src = `file://${file.path}`;
+                }
                 
             } else if (file.type === 'video') {
                 newElement = document.createElement('video');
@@ -314,36 +375,37 @@
                 newElement.autoplay = true;
                 newElement.muted = true;
                 
+                // Ensure video covers everything
+                newElement.style.cssText = `
+                    position: absolute;
+                    opacity: 0;
+                    transition: opacity 0.5s ease-in-out;
+                    z-index: 100;
+                    transform: translateZ(0);
+                    backface-visibility: hidden;
+                    will-change: opacity;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: #000;
+                `;
+                
                 console.log('Created video element, waiting for load...');
                 
-                // Apply scaling to video using imageScaler
+                // Apply scaling to video
                 window.imageScaler.applyScaling(newElement);
                 
                 newElement.onloadeddata = () => {
-                    console.log(`Video loaded successfully: ${file.name}`);
+                    console.log(`Video loaded: ${file.name}`);
                     
-                    // Add to container first (invisible)
                     container.appendChild(newElement);
+                    newElement.offsetHeight;
                     
-                    setTimeout(() => {
-                        // Fade out current active element
-                        const currentActive = container.querySelector('.media-item.active');
-                        if (currentActive) {
-                            console.log('Fading out previous media');
-                            currentActive.classList.remove('active');
-                        }
-                        
-                        // Fade in new element
+                    requestAnimationFrame(() => {
                         newElement.classList.add('active');
-                        console.log(`Video activated with final classes: ${newElement.className}`);
-                        
-                        // Remove old elements after transition
-                        setTimeout(() => {
-                            const oldElements = container.querySelectorAll('.media-item:not(.active)');
-                            console.log(`Removing ${oldElements.length} old elements`);
-                            oldElements.forEach(el => el.remove());
-                        }, 600);
-                    }, 50);
+                        newElement.style.opacity = '1';
+                    });
                 };
                 
                 newElement.onended = () => {
@@ -355,15 +417,20 @@
                     nextMedia();
                 };
             }
+            
+            // Preload next image in background
+            const nextIndex = (index + 1) % mediaFiles.length;
+            const nextFile = mediaFiles[nextIndex];
+            if (nextFile && nextFile.type === 'image' && !preloadedImages.has(nextFile.path)) {
+                preloadImage(nextFile);
+            }
         }
         
-        // Next media
         function nextMedia() {
             currentIndex = (currentIndex + 1) % mediaFiles.length;
             showMedia(currentIndex);
         }
         
-        // Initialize on load
         window.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
