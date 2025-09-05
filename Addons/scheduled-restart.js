@@ -5,7 +5,7 @@
 // Addon information (required)
 const info = {
   name: "Scheduled PC Restart",
-  version: "1.0.5",
+  version: "1.0.6",
   description: "Automatically restart the PC at scheduled intervals with visual countdown and announcements",
   author: "Digital Signage Team",
   category: "System"
@@ -118,27 +118,43 @@ class ScheduledRestartAddon {
     this.startTime = null;
     this.isWarningActive = false;
     this.timeRemaining = 'Not scheduled';
+    this.isShuttingDown = false; // Track shutdown state
     
     // Store reference to this instance globally so frontend can access it
     global.scheduledRestartAddon = this;
     
-    console.log('ScheduledRestartAddon created with config:', this.config);
+    this.safeLog('ScheduledRestartAddon created with config:', this.config);
+  }
+  
+  // Safe logging method that handles EIO errors during shutdown
+  safeLog(message, ...args) {
+    try {
+      console.log(message, ...args);
+    } catch (err) {
+      // Silently ignore write errors during shutdown
+      if (err.code !== 'EIO') {
+        // Re-throw non-EIO errors only if not shutting down
+        if (!this.isShuttingDown) {
+          throw err;
+        }
+      }
+    }
   }
   
   async init() {
-    console.log('Initializing Scheduled Restart addon with config:', this.config);
+    this.safeLog('Initializing Scheduled Restart addon with config:', this.config);
     
     await this.ensureFontsDirectory();
     await this.updateFontOptions();
     
     if (!this.config.enabled) {
-      console.log('Scheduled Restart addon is disabled');
+      this.safeLog('Scheduled Restart addon is disabled');
       this.stopSchedule();
       return;
     }
     
     this.startSchedule();
-    console.log('Scheduled Restart addon initialized successfully');
+    this.safeLog('Scheduled Restart addon initialized successfully');
   }
   
   async ensureFontsDirectory() {
@@ -155,10 +171,10 @@ class ScheduledRestartAddon {
       
       try {
         await fs.access(this.fontsDir);
-        console.log(`${this.directoryName} directory already exists:`, this.fontsDir);
+        this.safeLog(`${this.directoryName} directory already exists:`, this.fontsDir);
       } catch {
         await fs.mkdir(this.fontsDir, { recursive: true });
-        console.log(`Created ${this.directoryName} directory:`, this.fontsDir);
+        this.safeLog(`Created ${this.directoryName} directory:`, this.fontsDir);
         
         const readmeContent = `Fonts Directory
 ===============
@@ -178,7 +194,7 @@ After adding fonts, click "Reload Addons" to refresh the font list.
         await fs.writeFile(path.join(this.fontsDir, 'README.txt'), readmeContent);
       }
     } catch (err) {
-      console.error(`Failed to create ${this.directoryName} directory:`, err);
+      this.safeLog(`Failed to create ${this.directoryName} directory:`, err);
     }
   }
   
@@ -193,10 +209,10 @@ After adding fonts, click "Reload Addons" to refresh the font list.
           ...availableFonts.map(font => ({ value: font, label: font }))
         ];
         
-        console.log('Updated font options for restart addon:', fontSetting.options);
+        this.safeLog('Updated font options for restart addon:', fontSetting.options);
       }
     } catch (err) {
-      console.error('Failed to update font options:', err);
+      this.safeLog('Failed to update font options:', err);
     }
   }
   
@@ -256,22 +272,22 @@ After adding fonts, click "Reload Addons" to refresh the font list.
       const dataUrl = `data:${mimeType};base64,${base64Data}`;
       this.fontDataCache.set(fontName, dataUrl);
       
-      console.log(`Font ${fontName} cached for restart addon`);
+      this.safeLog(`Font ${fontName} cached for restart addon`);
       return dataUrl;
     } catch (err) {
-      console.error(`Failed to read font ${fontName}:`, err);
+      this.safeLog(`Failed to read font ${fontName}:`, err);
       return null;
     }
   }
   
   // Method to trigger test warning (called from frontend)
   triggerTestWarning() {
-    console.log('=== BACKEND: Test warning triggered from frontend ===');
-    console.log('=== BACKEND: Broadcasting test-warning message ===');
+    this.safeLog('=== BACKEND: Test warning triggered from frontend ===');
+    this.safeLog('=== BACKEND: Broadcasting test-warning message ===');
     this.broadcastToFrontend({
       type: 'test-warning'
     });
-    console.log('=== BACKEND: Message should now be available at window.restartAddonMessage ===');
+    this.safeLog('=== BACKEND: Message should now be available at window.restartAddonMessage ===');
   }
   
   startSchedule() {
@@ -285,8 +301,8 @@ After adding fonts, click "Reload Addons" to refresh the font list.
     const warningMs = this.config.warningTime * 60 * 1000;
     const warningTime = intervalMs - warningMs;
     
-    console.log(`Restart scheduled in ${this.config.testMode ? this.config.testInterval + ' minutes' : this.config.restartInterval + ' hours'}`);
-    console.log(`Warning will show in ${warningTime / 1000 / 60} minutes`);
+    this.safeLog(`Restart scheduled in ${this.config.testMode ? this.config.testInterval + ' minutes' : this.config.restartInterval + ' hours'}`);
+    this.safeLog(`Warning will show in ${warningTime / 1000 / 60} minutes`);
     
     this.startTimeUpdater();
     
@@ -343,6 +359,8 @@ After adding fonts, click "Reload Addons" to refresh the font list.
   }
   
   stopSchedule() {
+    this.isShuttingDown = true;
+    
     if (this.restartTimer) {
       clearTimeout(this.restartTimer);
       this.restartTimer = null;
@@ -362,9 +380,16 @@ After adding fonts, click "Reload Addons" to refresh the font list.
     
     // Remove any active warnings when stopping
     if (this.isWarningActive) {
-      this.broadcastToFrontend({
-        type: 'remove-warning'
-      });
+      try {
+        this.broadcastToFrontend({
+          type: 'remove-warning'
+        });
+      } catch (err) {
+        // Ignore broadcast errors during shutdown
+        if (err.code !== 'EIO') {
+          this.safeLog('Error removing warning during shutdown:', err);
+        }
+      }
     }
     
     this.isWarningActive = false;
@@ -373,7 +398,7 @@ After adding fonts, click "Reload Addons" to refresh the font list.
   }
   
   showWarning() {
-    console.log('Showing restart warning on main display');
+    this.safeLog('Showing restart warning on main display');
     this.isWarningActive = true;
     
     // Send initial warning
@@ -392,14 +417,14 @@ After adding fonts, click "Reload Addons" to refresh the font list.
             type: 'update-warning',
             warningTime: minutesLeft
           });
-          console.log(`Updated warning: ${minutesLeft} minutes remaining`);
+          this.safeLog(`Updated warning: ${minutesLeft} minutes remaining`);
         }
       }
     }, 60000); // Update every minute
   }
   
   async performRestart() {
-    console.log('Performing PC restart');
+    this.safeLog('Performing PC restart');
     
     this.broadcastToFrontend({
       type: 'restart-now'
@@ -412,19 +437,19 @@ After adding fonts, click "Reload Addons" to refresh the font list.
       if (os.platform() === 'win32') {
         exec('shutdown /r /t 0', (error) => {
           if (error) {
-            console.error('Failed to restart Windows:', error);
+            this.safeLog('Failed to restart Windows:', error);
           }
         });
       } else if (os.platform() === 'linux') {
         exec('sudo reboot', (error) => {
           if (error) {
-            console.error('Failed to restart Linux:', error);
+            this.safeLog('Failed to restart Linux:', error);
           }
         });
       } else if (os.platform() === 'darwin') {
         exec('sudo reboot', (error) => {
           if (error) {
-            console.error('Failed to restart macOS:', error);
+            this.safeLog('Failed to restart macOS:', error);
           }
         });
       }
@@ -444,14 +469,14 @@ After adding fonts, click "Reload Addons" to refresh the font list.
           window.restartAddonMessage = ${JSON.stringify(message)};
           console.log('=== MAIN DISPLAY: Message injected via IPC ===', ${JSON.stringify(message)});
         `);
-        console.log('=== BACKEND: Message sent via Electron IPC to main window ===');
+        this.safeLog('=== BACKEND: Message sent via Electron IPC to main window ===');
       }
     } catch (err) {
-      console.log('=== BACKEND: IPC not available, using fallback method ===');
+      this.safeLog('=== BACKEND: IPC not available, using fallback method ===');
     }
     
-    console.log('=== BACKEND: Message stored in global.restartAddonMessage ===');
-    console.log('=== BACKEND: Message content:', JSON.stringify(message));
+    this.safeLog('=== BACKEND: Message stored in global.restartAddonMessage ===');
+    this.safeLog('=== BACKEND: Message content:', JSON.stringify(message));
   }
   
   getTimeRemaining() {
@@ -474,14 +499,36 @@ After adding fonts, click "Reload Addons" to refresh the font list.
   }
   
   async stop() {
-    console.log('Stopping Scheduled Restart addon');
+    this.safeLog('Stopping Scheduled Restart addon');
+    this.isShuttingDown = true;
+    
+    // Clean up timers and intervals first
     this.stopSchedule();
-    this.fontDataCache.clear();
-    global.scheduledRestartAddon = null;
+    
+    // Clear cache safely
+    try {
+      if (this.fontDataCache) {
+        this.fontDataCache.clear();
+      }
+    } catch (err) {
+      this.safeLog('Error clearing font cache:', err);
+    }
+    
+    // Clear global reference safely
+    try {
+      if (typeof global !== 'undefined') {
+        global.scheduledRestartAddon = null;
+      }
+    } catch (err) {
+      // Ignore errors when clearing global during shutdown
+      if (err.code !== 'EIO') {
+        this.safeLog('Error clearing global reference:', err);
+      }
+    }
   }
   
   updateConfig(newConfig) {
-    console.log('Updating Scheduled Restart config:', newConfig);
+    this.safeLog('Updating Scheduled Restart config:', newConfig);
     const oldConfig = { ...this.config };
     this.config = { ...this.config, ...newConfig };
     
