@@ -9,6 +9,7 @@ const WebSocket = require('ws');
 const os = require('os');
 const { exec } = require('child_process');
 const axios = require('axios');
+const UpdateManager = require('./updateapp');
 
 // Configuration
 let config = {
@@ -36,6 +37,7 @@ let webServer;
 let wsServer;
 let discoverySocket;
 let addons = new Map(); // Store loaded addons
+let updateManager;
 
 // Get the directory where the app is running
 const appDir = app.isPackaged 
@@ -44,6 +46,9 @@ const appDir = app.isPackaged
 const mediaDir = path.join(appDir, 'Media');
 const configPath = path.join(appDir, 'config.json');
 const addonsDir = path.join(appDir, 'Addons');
+
+// Initialize update manager
+updateManager = new UpdateManager(appDir);
 
 // Load configuration
 async function loadConfig() {
@@ -360,7 +365,7 @@ function setupWebServer() {
     }
   });
   
-  // Separate multer config for updates - simplified for debugging
+  // Separate multer config for updates
   const uploadUpdate = multer({ 
     dest: path.join(app.getPath('userData'), 'updates'),
     limits: {
@@ -370,8 +375,6 @@ function setupWebServer() {
 
   // Authentication middleware
   const auth = async (req, res, next) => {
-    // For file uploads, password is in body (form data)
-    // For JSON requests, password is in JSON body
     const password = req.body.password;
     
     if (!config.password || password === config.password) {
@@ -454,7 +457,6 @@ function setupWebServer() {
             console.log(`Sending ${file.filename} to ${peer.name} at ${peer.ip}:${peer.port}`);
             const fileData = await fs.readFile(file.path);
             
-            // Use the correct URL for the peer
             const peerUrl = `http://${peer.ip}:${peer.port}/api/media/receive`;
             
             await axios.post(peerUrl, {
@@ -462,7 +464,7 @@ function setupWebServer() {
               data: fileData.toString('base64'),
               password: config.password
             }, {
-              timeout: 30000, // 30 second timeout for large files
+              timeout: 30000,
               maxContentLength: Infinity,
               maxBodyLength: Infinity
             });
@@ -516,13 +518,18 @@ function setupWebServer() {
 
   webApp.post('/api/addons/reload', auth, async (req, res) => {
     try {
-      // Stop all running addons
+      // Stop all running addons with proper error handling
       for (const [id, addon] of addons) {
         if (addon.enabled && addon.instance && addon.instance.stop) {
           try {
             await addon.instance.stop();
           } catch (err) {
-            console.error(`Error stopping addon ${addon.info.name}:`, err);
+            // Handle EIO errors during shutdown gracefully
+            if (err.code === 'EIO') {
+              console.log(`Addon ${addon.info.name} stopped (EIO ignored)`);
+            } else {
+              console.error(`Error stopping addon ${addon.info.name}:`, err);
+            }
           }
         }
       }
@@ -542,7 +549,7 @@ function setupWebServer() {
     }
   });
 
-  // Test endpoint for update route
+  // Update API Routes - Now using UpdateManager
   webApp.get('/api/update/test', (req, res) => {
     res.json({ 
       success: true, 
@@ -573,8 +580,6 @@ function setupWebServer() {
       }
       
       console.log('Update received:', req.file.originalname, 'Size:', req.file.size);
-      console.log('Restart PC after update:', restartPC);
-      console.log('Temp path:', req.file.path);
       
       // Ensure updates directory exists
       const updateDir = path.join(app.getPath('userData'), 'updates');
@@ -613,7 +618,6 @@ function setupWebServer() {
             console.log(`Sending update to ${peer.name} at ${peer.ip}:${peer.port}`);
             const updateData = await fs.readFile(updatePath);
             
-            // Use the correct URL for the peer
             const peerUrl = `http://${peer.ip}:${peer.port}/api/update/receive`;
             
             await axios.post(peerUrl, {
@@ -621,7 +625,7 @@ function setupWebServer() {
               password: config.password,
               restartPC: restartPC
             }, {
-              timeout: 60000, // 60 second timeout for updates
+              timeout: 60000,
               maxContentLength: Infinity,
               maxBodyLength: Infinity
             });
@@ -633,143 +637,9 @@ function setupWebServer() {
         }
       }
       
-      // Create update script
-      if (process.platform === 'win32') {
-        // Windows batch file
-        const exePath = process.execPath;
-        const appAsarPath = app.isPackaged 
-          ? path.join(process.resourcesPath, 'app.asar')
-          : path.join(appDir, 'dist', 'win-unpacked', 'resources', 'app.asar');
-        
-        const batchContent = `@echo off
-echo Closing application...
-taskkill /F /IM "${path.basename(exePath)}" >nul 2>&1
-echo Waiting for process to terminate...
-timeout /t 3 /nobreak > nul
-echo Applying update...
-if exist "${appAsarPath}" (
-    copy /Y "${updatePath}" "${appAsarPath}"
-    if errorlevel 1 (
-        echo ERROR: Failed to update app.asar
-        echo Make sure the application is fully closed
-        pause
-        exit /b 1
-    ) else (
-        echo Update applied successfully!
-    )
-) else (
-    echo WARNING: app.asar not found at expected location
-    echo Update file saved at: ${updatePath}
-    echo For development mode, manually copy this file to your app location
-)
-${restartPC === 'true' ? `
-echo.
-echo Restarting computer in 5 seconds...
-echo Press Ctrl+C to cancel restart
-timeout /t 5
-shutdown /r /t 0 /f
-` : `
-echo Starting application...
-if exist "${appAsarPath}" (
-    start "" "${exePath}"
-) else (
-    echo Starting development mode...
-    powershell -WindowStyle Hidden -Command "Start-Process cmd -ArgumentList '/c cd /d ''${appDir}'' && npm start' -WindowStyle Hidden"
-)
-echo Update complete!
-echo.
-echo This window will close in 3 seconds...
-timeout /t 3 /nobreak > nul
-`}
-exit`;
-        
-        const batchPath = path.join(appDir, 'apply-update.bat');
-        await fs.writeFile(batchPath, batchContent);
-        
-        console.log('Created update script:', batchPath);
-        
-        // Send response
-        res.json({ 
-          success: true, 
-          message: restartPC === 'true' 
-            ? 'Update scheduled, computer will restart...' 
-            : 'Update scheduled, restarting application...' 
-        });
-        
-        // Execute batch file in new window and exit
-        setTimeout(() => {
-          require('child_process').exec(`start "Update" cmd /c "${batchPath}"`, (error) => {
-            if (error) {
-              console.error('Failed to execute update script:', error);
-            }
-          });
-          // Force exit
-          process.exit(0);
-        }, 500);
-      } else {
-        // Linux/Mac shell script
-        const exePath = process.execPath;
-        const appAsarPath = app.isPackaged 
-          ? path.join(process.resourcesPath, 'app.asar')
-          : path.join(appDir, 'dist', 'linux-unpacked', 'resources', 'app.asar');
-        
-        const scriptContent = `#!/bin/bash
-echo "Closing application..."
-pkill -f "${path.basename(exePath)}" 2>/dev/null
-echo "Waiting for process to terminate..."
-sleep 3
-echo "Applying update..."
-if [ -f "${appAsarPath}" ]; then
-    cp -f "${updatePath}" "${appAsarPath}"
-    if [ $? -ne 0 ]; then
-        echo "ERROR: Failed to update app.asar"
-        echo "Make sure the application is fully closed"
-        exit 1
-    else
-        echo "Update applied successfully!"
-    fi
-else
-    echo "WARNING: app.asar not found at expected location"
-    echo "Update file saved at: ${updatePath}"
-    echo "For development mode, manually copy this file to your app location"
-fi
-echo "Starting application..."
-if [ -f "${appAsarPath}" ]; then
-    "${exePath}" &
-else
-    echo "Starting development mode..."
-    cd "${appDir}"
-    npm start &
-fi
-echo "Update complete!"
-sleep 2
-rm -f "$0"
-exit`;
-        
-        const scriptPath = path.join(appDir, 'apply-update.sh');
-        await fs.writeFile(scriptPath, scriptContent);
-        await fs.chmod(scriptPath, '755');
-        
-        console.log('Created update script:', scriptPath);
-        
-        // Send response
-        res.json({ success: true, message: 'Update scheduled, restarting...' });
-        
-        // Execute script in new terminal and exit
-        setTimeout(() => {
-          const terminal = process.platform === 'darwin' 
-            ? `osascript -e 'tell app "Terminal" to do script "${scriptPath}"'`
-            : `gnome-terminal -- "${scriptPath}"`;
-            
-          require('child_process').exec(terminal, (error) => {
-            if (error) {
-              console.error('Failed to execute update script:', error);
-            }
-          });
-          // Force exit
-          process.exit(0);
-        }, 500);
-      }
+      // Process update using UpdateManager
+      const result = await updateManager.processUpdate(updatePath, restartPC, target);
+      res.json(result);
       
     } catch (err) {
       console.error('Update error:', err);
@@ -798,37 +668,8 @@ exit`;
       JSON.stringify(updateInfo, null, 2)
     );
     
-    // Create batch/script file based on platform
-    if (process.platform === 'win32') {
-      const batchContent = `@echo off
-echo Applying update...
-timeout /t 2 /nobreak > nul
-copy /Y "${updatePath}" "${process.resourcesPath}\\app.asar"
-echo Update applied. Starting application...
-start "" "${process.execPath}"
-exit`;
-      
-      const batchPath = path.join(appDir, 'apply-update.bat');
-      await fs.writeFile(batchPath, batchContent);
-      
-      // Execute batch file
-      require('child_process').exec(`start "" "${batchPath}"`);
-    } else {
-      // Linux/Mac script
-      const scriptContent = `#!/bin/bash
-echo "Applying update..."
-sleep 2
-cp -f "${updatePath}" "${process.resourcesPath}/app.asar"
-echo "Update applied. Starting application..."
-"${process.execPath}" &
-exit`;
-      
-      const scriptPath = path.join(appDir, 'apply-update.sh');
-      await fs.writeFile(scriptPath, scriptContent);
-      await fs.chmod(scriptPath, '755');
-      
-      require('child_process').exec(`"${scriptPath}"`);
-    }
+    // Use UpdateManager to handle received update
+    await updateManager.createReceivedUpdateScript(updatePath);
     
     res.json({ success: true });
     
@@ -837,6 +678,7 @@ exit`;
     }, 1000);
   });
 
+  // Peer management routes
   webApp.get('/api/peers', (req, res) => {
     res.json(config.peers);
   });
@@ -1138,7 +980,6 @@ ipcMain.handle('get-addon-frontend-script', async (event, addonId, addonConfig) 
   return null;
 });
 
-// NEW: Generic IPC handler for addon font data (with debugging)
 ipcMain.handle('get-addon-font-data', async (event, addonId, fontName) => {
   try {
     console.log(`=== IPC Handler: Font data requested ===`);
@@ -1188,6 +1029,10 @@ app.whenReady().then(async () => {
   await loadConfig();
   await ensureMediaDir();
   await ensureAddonsDir();
+  
+  // Clean up any scheduled tasks from previous updates (Windows only)
+  await updateManager.cleanupScheduledTasks();
+  
   await loadAddons();
   createWindow();
   setupWebServer();
@@ -1207,13 +1052,18 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', async () => {
-  // Stop all addons before quitting
+  // Stop all addons before quitting with proper error handling
   for (const [id, addon] of addons) {
     if (addon.enabled && addon.instance && addon.instance.stop) {
       try {
         await addon.instance.stop();
       } catch (err) {
-        console.error(`Error stopping addon ${addon.info.name}:`, err);
+        // Handle EIO errors during shutdown gracefully
+        if (err.code === 'EIO') {
+          console.log(`Addon ${addon.info.name} stopped (EIO ignored during shutdown)`);
+        } else {
+          console.error(`Error stopping addon ${addon.info.name}:`, err);
+        }
       }
     }
   }

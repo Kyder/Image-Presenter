@@ -41,6 +41,7 @@
       "index.html",
       "mainapp.css",
       "image-scaling.js",
+      "updateapp.js",
       "web/**/*",
       "node_modules/**/*",
       "!node_modules/.cache"
