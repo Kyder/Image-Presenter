@@ -1,0 +1,17 @@
+{
+  "displayName": "KyderFox005",
+  "imageDuration": 5000,
+  "videoPosition": "after",
+  "imageScaling": "contain",
+  "manualResolution": false,
+  "manualWidth": null,
+  "manualHeight": null,
+  "password": "",
+  "staticIp": "",
+  "localhostOnly": false,
+  "port": 3006,
+  "wsPort": 3001,
+  "discoveryPort": 3002,
+  "rotation": 0,
+  "addons": {}
+}

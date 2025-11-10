@@ -1,0 +1,41 @@
+<h2>Display Settings</h2>
+
+<div class="form-group">
+    <label for="rotation">Screen Rotation</label>
+    <select id="rotation">
+        <option value="0">Normal (0°)</option>
+        <option value="90">90° Clockwise</option>
+        <option value="-90">90° Counter-clockwise</option>
+        <option value="180">180° (Upside down)</option>
+    </select>
+</div>
+
+<div class="form-group">
+    <label for="image-duration">Image Display Duration</label>
+    <input type="range" id="image-duration" min="1" max="60" value="5">
+    <span class="range-value" id="duration-value">5 seconds</span>
+</div>
+
+<div class="form-group">
+    <label for="video-position">Video Playback Position</label>
+    <select id="video-position">
+        <option value="between">Between images (alphabetical order)</option>
+        <option value="after">After all images</option>
+    </select>
+</div>
+
+<div class="form-group">
+    <label for="image-scaling">Image Scaling Mode</label>
+    <select id="image-scaling">
+        <option value="contain">Do not resize (fit within screen)</option>
+        <option value="fill">Stretch to whole screen</option>
+        <option value="cover">Zoom and crop to fill</option>
+    </select>
+    <small style="color: #6c757d; display: block; margin-top: 5px;">
+        • <strong>Do not resize:</strong> Images maintain aspect ratio and fit within screen (original behavior)<br>
+        • <strong>Stretch:</strong> Images fill entire screen, may distort aspect ratio<br>
+        • <strong>Zoom and crop:</strong> Images fill screen maintaining aspect ratio, edges may be cropped
+    </small>
+</div>
+
+<button id="save-display" class="btn-success">Save Display Settings</button>

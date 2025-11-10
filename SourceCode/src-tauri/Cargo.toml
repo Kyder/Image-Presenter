@@ -1,0 +1,25 @@
+[package]
+name = "image-presenter"
+version = "1.1.25"
+description = "Digital signage with network control"
+authors = ["KyderFox"]
+license = "MIT"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+hostname = "0.3"
+tokio = { version = "1.35", features = ["full"] }
+axum = { version = "0.7", features = ["multipart"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["fs", "cors"] }
+toml = "0.8"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
