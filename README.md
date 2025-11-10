@@ -2,7 +2,7 @@
 Fullscreen image presenter with web control and addons.
 
 Application shows images in Fullscreen, and trought web browser is possible to control any part of this app. 
-This is Electron (node.js) app.
+This is app running on Tauri framework. Originaly it was running at Electron but app was rebuild for Tauri, because it can run very fast, app can be really small and is running even on on less powerfull machines.
 
 Basic functions:
 - Image presentation with adjustable delay
@@ -13,7 +13,7 @@ Basic functions:
 - Network setings where you can adjust ports or IP and name
 - Addon support
 
-Addons:
+Addons: CURENCTLY BEING REWORKED FOR TAURI
 
 Date/Time Display>
 Shows real Date and Time on the screen in few modes with option to use custom font or adjust font size.
@@ -26,9 +26,6 @@ Can show warrning before restart will. Also offers basic customization for warrn
 
 Known issues:
 
-Main App: 
-
-Video MP4, some videos works and some not.
 
 
 
