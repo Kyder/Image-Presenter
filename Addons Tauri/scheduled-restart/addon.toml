@@ -1,0 +1,99 @@
+[info]
+name = "Scheduled PC Restart"
+version = "1.0.7"
+author = "Digital Signage Team"
+description = "Automatically restart the PC at scheduled intervals with visual countdown and announcements"
+category = "System"
+
+[[settings]]
+id = "enabled"
+name = "Enable Scheduled Restart"
+type = "boolean"
+default = false
+description = "Enable automatic PC restart functionality"
+
+[[settings]]
+id = "restartInterval"
+name = "Restart Interval"
+type = "range"
+default = 24
+min = 1
+max = 72
+unit = "hours"
+description = "Time between restarts"
+
+[[settings]]
+id = "testMode"
+name = "Test Mode (Minutes)"
+type = "boolean"
+default = false
+description = "Use minutes instead of hours for testing"
+
+[[settings]]
+id = "testInterval"
+name = "Test Interval"
+type = "range"
+default = 5
+min = 1
+max = 60
+unit = "minutes"
+description = "Time between restarts in test mode"
+
+[[settings]]
+id = "warningTime"
+name = "Warning Time"
+type = "range"
+default = 5
+min = 1
+max = 30
+unit = "minutes"
+description = "Show warning this many minutes before restart"
+
+[[settings]]
+id = "font"
+name = "Font"
+type = "select"
+default = "default"
+description = "Font to use for restart warning messages"
+options = []
+
+[[settings]]
+id = "fontSize"
+name = "Message Font Size"
+type = "range"
+default = 48
+min = 24
+max = 72
+unit = "px"
+description = "Size of the restart warning messages"
+
+[[settings]]
+id = "textColor"
+name = "Text Color"
+type = "color"
+default = "#FFFFFF"
+description = "Color of the restart messages"
+
+[[settings]]
+id = "backgroundColor"
+name = "Message Background"
+type = "color"
+default = "#FF0000"
+description = "Background color of restart messages"
+
+[[settings]]
+id = "backgroundOpacity"
+name = "Background Opacity"
+type = "range"
+default = 95
+min = 0
+max = 100
+unit = "%"
+description = "Transparency of the warning background (0 = fully transparent, 100 = fully opaque)"
+
+[[settings]]
+id = "enableBlink"
+name = "Enable Blinking"
+type = "boolean"
+default = true
+description = "Enable pulsing/blinking animation for the warning"

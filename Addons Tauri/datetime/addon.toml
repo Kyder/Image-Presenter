@@ -1,0 +1,123 @@
+[info]
+name = "Date/Time Display"
+version = "1.1.1"
+author = "Digital Signage Team"
+description = "Displays current date and time with customizable animations, styling, font size, and date separators"
+category = "Display"
+
+[[settings]]
+id = "enabled"
+name = "Enable Date/Time Display"
+type = "boolean"
+default = true
+description = "Show date and time on the display"
+
+[[settings]]
+id = "font"
+name = "Font"
+type = "select"
+default = "default"
+description = "Font to use for date/time display (automatically loads from Fonts folder)"
+options = []
+
+[[settings]]
+id = "fontSize"
+name = "Font Size"
+type = "range"
+default = 24
+min = 12
+max = 120
+unit = "px"
+description = "Size of the date/time text"
+
+[[settings]]
+id = "bold"
+name = "Bold Text"
+type = "boolean"
+default = false
+description = "Make the text bold"
+
+[[settings]]
+id = "color"
+name = "Text Color"
+type = "color"
+default = "#FFFFFF"
+description = "Color of the date/time text"
+
+[[settings]]
+id = "borderColor"
+name = "Border Color"
+type = "color"
+default = "#000000"
+description = "Color of the text border"
+
+[[settings]]
+id = "borderWidth"
+name = "Border Width"
+type = "range"
+default = 2
+min = 0
+max = 5
+unit = "px"
+description = "Width of the text border in pixels"
+
+[[settings]]
+id = "dateSeparator"
+name = "Date Separator"
+type = "select"
+default = "."
+description = "Separator character for date (day/month/year)"
+options = [
+    { value = ".", label = "Dot (.)" },
+    { value = "/", label = "Slash (/)" },
+    { value = "-", label = "Dash (-)" },
+    { value = ":", label = "Colon (:)" },
+    { value = " ", label = "Space ( )" }
+]
+
+[[settings]]
+id = "timeSeparator"
+name = "Time Separator"
+type = "select"
+default = ":"
+description = "Separator character for time (hour:minute:second)"
+options = [
+    { value = ":", label = "Colon (:)" },
+    { value = ".", label = "Dot (.)" },
+    { value = "-", label = "Dash (-)" },
+    { value = " ", label = "Space ( )" }
+]
+
+[[settings]]
+id = "style"
+name = "Animation Style"
+type = "select"
+default = "static"
+description = "How the date/time moves on screen"
+options = [
+    { value = "static", label = "Static (bottom right)" },
+    { value = "sliding", label = "Sliding (left to right)" },
+    { value = "teleporting", label = "Teleporting (corner to corner)" },
+    { value = "bouncing", label = "Bouncing (DVD screensaver style)" }
+]
+
+[[settings]]
+id = "speed"
+name = "Animation Speed"
+type = "range"
+default = 50
+min = 10
+max = 200
+description = "Speed of the animation (higher = faster)"
+
+[[settings]]
+id = "layout"
+name = "Date/Time Layout"
+type = "select"
+default = "inline"
+description = "How date and time are arranged"
+options = [
+    { value = "inline", label = "Date and time on same line" },
+    { value = "below", label = "Time below date" },
+    { value = "above", label = "Time above date" }
+]
