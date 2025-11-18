@@ -13,6 +13,9 @@ Basic functions:
 - Network setings where you can adjust ports or IP and name
 - Addon support
 
+Tauri Conversion>
+Currently it is missing autodiscovery function, update and maybe one network feature.
+
 Addons: CURENCTLY BEING REWORKED FOR TAURI
 
 Date/Time Display>
@@ -32,11 +35,8 @@ Known issues:
 Addons:
 
 Date/Time Display:
-- Teleporting is happening only from two corners
 - Sliding from left to right is actually from right to left 
 
-Scheduled restart:
-- When you change settings multiple times warrning may stay on the screen even when you disable the addon, restart is required to keep everything working corectly after this happen
 
 This app was made with help of AI, can have some security problems or some parts might not behave as wanted but generally speaking, if it works it works.
 So I cannot guarantee how secure this application is.
