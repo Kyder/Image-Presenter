@@ -14,9 +14,7 @@ Basic functions:
 - Addon support
 
 Tauri Conversion>
-Currently it is missing autodiscovery function, update and maybe one network feature.
-
-Addons: CURENCTLY BEING REWORKED FOR TAURI
+Currently it is missing autodiscovery function, update and maybe one network feature. Will be fixed in next version.
 
 Date/Time Display>
 Shows real Date and Time on the screen in few modes with option to use custom font or adjust font size.
