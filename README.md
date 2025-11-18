@@ -16,6 +16,8 @@ Basic functions:
 Tauri Conversion>
 Currently it is missing autodiscovery function, update and maybe one network feature. Will be fixed in next version.
 
+Addons:
+
 Date/Time Display>
 Shows real Date and Time on the screen in few modes with option to use custom font or adjust font size.
 
