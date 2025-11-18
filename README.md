@@ -28,7 +28,7 @@ Can show warrning before restart will. Also offers basic customization for warrn
 
 
 Known issues:
-
+Animations of moving font can look stuttery on low end hw with linux without proper hw render support (Probably also need some tinkering with drivers and WebKitGTK settings). On windows it will run smoothly even on lowend hw.
 
 
 
