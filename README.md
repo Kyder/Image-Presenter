@@ -14,7 +14,7 @@ Basic functions:
 - Addon support
 
 Tauri Conversion>
-Currently it is missing autodiscovery function, update and maybe one network feature. Will be fixed in next version.
+Currently it is missing autodiscovery function, update and maybe one network feature. Will be fixed in future versions.
 
 Addons:
 
