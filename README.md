@@ -13,7 +13,7 @@ Basic functions:
 - Network setings where you can adjust ports or IP and name
 - Addon support
 
-Tauri Conversion>
+
 Currently it is missing autodiscovery function, update and maybe one network feature. Will be fixed in future versions.
 
 Addons:
