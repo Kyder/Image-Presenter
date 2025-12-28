@@ -42,5 +42,7 @@ This app was made with help of AI, can have some security problems or some parts
 So I cannot guarantee how secure this application is.
 
 Difference between versions:
+
 Electron> Most Complete version, have working auto discovery function. Works well on windows and linux but dont run well on low end pc
+
 Tauri> Works great on windows, even on low end pc. Works terible on linux.
