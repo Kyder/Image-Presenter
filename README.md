@@ -38,11 +38,14 @@ Date/Time Display:
 - Sliding from left to right is actually from right to left 
 
 
-This app was made with help of AI, can have some security problems or some parts might not behave as wanted but generally speaking, if it works it works.
-So I cannot guarantee how secure this application is.
-
 Difference between versions:
 
 Electron> Most Complete version, have working auto discovery function. Addon for date and time have okay animations. Works well on windows and linux but dont run well on low end pc
 
 Tauri> Works great on windows, even on low end pc and addon for date and time have very smooth animations. Works terible on linux.
+
+AI Warning: 
+This app was made with help of AI, can have some security problems or some parts might not behave as wanted but generally speaking, if it works it works.
+So I cannot guarantee how secure this application is.
+
+So if you see some big security risk, you are free to fork this and fix it and release it under any name.
