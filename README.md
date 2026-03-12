@@ -48,4 +48,4 @@ AI Warning:
 This app was made with help of AI, can have some security problems or some parts might not behave as wanted but generally speaking, if it works it works.
 So I cannot guarantee how secure this application is.
 
-So if you see some big security risk, you are free to fork this and fix it and release it under any name.
+So if you see some big security risks, you are free to fork this and fix it and release it under any name.
